@@ -1,0 +1,64 @@
+参考 https://blog.jcole.us/2013/01/03/a-quick-introduction-to-innodb-ruby/
+     https://github.com/jeremycole/innodb_diagrams
+	 
+	 
+innodb_ruby脚本是用来学习INNODB内部结构的，不要用于生产环境
+环境Ubuntu 16.04.1 LTS
+apt-get install rubygems 安装ruby包管理
+gem install innodb_ruby
+
+root@ubuntu:~# innodb_space  测试是否安装成功，如果出现表示成功
+Error: System space file (-s) or space file (-f) must be specified; see --help for usage information
+
+
+采用如下脚本插入测试数据
+#!/usr/bin/env ruby
+
+require "mysql"
+
+m = Mysql.new("127.0.0.1", "root", "", "test")
+
+m.query("DROP TABLE IF EXISTS t")
+
+m.query("CREATE TABLE t (i INT UNSIGNED NOT NULL, PRIMARY KEY(i)) ENGINE=InnoDB")
+
+(1..1000000).to_a.shuffle.each_with_index do |i, index|
+  m.query("INSERT INTO t (i) VALUES (#{i})")
+  puts "Inserted #{index} rows..." if index % 10000 == 0
+end
+
+
+查看整个表空间文件展示表空间由哪些页组成，采用独立表空间
+innodb_space -f test/t.ibd space-page-type-regions
+
+root@ubuntu:/var/lib/mysql/test# ls
+db.opt  t.frm  t.ibd
+root@ubuntu:/var/lib/mysql/test# innodb_space -f t.ibd space-page-type-regions
+start       end         count       type                
+0           0           1           FSP_HDR            FSP_HDR: Filespace Header / Extent Descriptor 
+1           1           1           IBUF_BITMAP        IBUF_BITMAP: Insert Buffer Bookkeeping
+2           2           1           INODE              INODE: Index Node Information
+3           37          35          INDEX              INDEX: Root page of first index
+38          63          26          FREE (ALLOCATED)   ALLOCATED: Reserved but unused page
+64          2155        2092        INDEX              
+2156        2175        20          FREE (ALLOCATED)    
+2176        2176        1           INDEX               
+2177        2239        63          FREE (ALLOCATED)    
+2240        2240        1           INDEX               
+2241        2303        63          FREE (ALLOCATED)    
+2304        2304        1           INDEX               
+2305        2367        63          FREE (ALLOCATED)    
+2368        2368        1           INDEX               
+2369        2431        63          FREE (ALLOCATED)    
+2432        2432        1           INDEX               
+2433        2687        255         FREE (ALLOCATED)
+
+Every index has an "internal" file segment, used for non-leaf pages, and a "leaf" file segment, used for leaf pages
+root@ubuntu:/var/lib/mysql/test# innodb_space -f t.ibd space-indexes
+id          name                            root        fseg        used        allocated   fill_factor 
+41                                          3           internal    3           3           100.00%      
+41                                          3           leaf        2129        2464        86.40%
+
+查看单个页的数据，由上面得知2号页为INODE页
+root@ubuntu:/var/lib/mysql/test# innodb_space -f t.ibd -p 2 page-dump
+我取了部分数据查看，真是看到不少东西，大家可以去尝试下
