@@ -4,3 +4,20 @@ SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE,info
  WHERE DB IS NOT NULL
    AND COMMAND != 'Sleep'
  ORDER BY TIME DESC LIMIT 10;
+ 
+ 
+ 
+https://www.percona.com/blog/2008/11/07/poor-mans-query-logging/
+https://bugs.launchpad.net/percona-toolkit/+bug/1402776
+#!/bin/bash
+#this script used monitor mysql network traffic.echo sql
+tcpdump -i eno1 -s 0 -l -w - dst port 3306 | strings | perl -e '
+while(<>) { chomp; next if /^[^ ]+[ ]*$/;
+    if(/^(SELECT|UPDATE|DELETE|INSERT|SET|COMMIT|ROLLBACK|CREATE|DROP|ALTER|CALL)/i)
+    {
+        if (defined $q) { print "$q\n"; }
+        $q=$_;
+    } else {
+        $_ =~ s/^[ \t]+//; $q.=" $_";
+    }
+}'
