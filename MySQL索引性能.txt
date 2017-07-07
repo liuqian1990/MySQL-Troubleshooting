@@ -1,0 +1,83 @@
+https://en.wikipedia.org/wiki/IOPS
+http://www.storagereview.com/wd_blue_ssd_review_1tb
+http://striky.ece.jhu.edu/~sasha/SOFTWARE/FORTRAN/007-3695-006/sgi_html/ch12.html
+
+
+Performance
+Sequential Read
+    250GB: 540MB/s
+    500GB, 1TB: 545MB/s
+Sequential Write
+    250GB: 500MB/s
+    500GB, 1TB: 525MB/s
+Random Read
+    250GB: 97K IOPS
+    500GB, 1TB: 100K IOPS
+Random Wrtie
+    250GB: 79K IOPS
+    500GB, 1TB: 80K IOPS
+	
+	
+	
+create table user (
+id int,
+username varchar(20),
+password varchar(20),
+city     varchar(50),
+primary key (id),key (city)
+)
+	
+		
+    需要的数据占比
+	(SELECT count(*) FROM user WHERE city='Beijing')/(SELECT count(*) FROM user)
+	
+	
+	索引占用空间
+	SELECT sum(INDEX_LENGTH) FROM information_schema.TABLES where TABLE_SCHEMA='数据库名';
+	
+	
+	数据占用空间
+	SELECT sum(DATA_LENGTH) FROM information_schema.TABLES where TABLE_SCHEMA='数据库名';
+	
+	
+	
+	
+	IO
+	
+	Index scan 
+	1/Random Read(IOPS) (第一个页随机读) + 执行计划中用到索引占用空间(需要的数据占比*索引占用空间)/Sequential Read(MB/s) + 需要的数据占比*总行数*(1/Random Read(IOPS))<得到真实数据>
+	
+
+	table scan
+	1/Random Read(IOPS) (第一个页随机读) +  总数据量/Sequential Read(MB/s)
+	
+	
+	CPU
+	行数直接决定CPU消耗
+	
+	建立索引的好处是对索引进行了排序，带来了的随机读。
+	
+	CPU time = 1000 × 0.1 ms + 10,000 × 0.005 ms = 150 ms (1000 FETCH calls and 10,000 index rows in both cases)
+    Number of 4K leaf pages (4 columns): 1.5 × 10,000 × 50/4000 = 200 (1.5 for free space)
+    Number of 4K leaf pages (14 columns) 1.5 × 10,000 × 200/4,000 = 800
+    Sequential read time (4 columns) = 200 × 0.1 ms = 20 ms
+    Sequential read time (14 columns) = 800 × 0.1 ms = 80 ms
+	
+
+The CPU time would be considerably higher with the second alternative because the DBMS must examine 1,000,000 rows instead of 20,000, and the result rows must be sorted. 
+On the other hand, the CPU time and the I/O time overlap(重叠), thanks to sequential reads.
+A full table scan would be faster than theinadequate index in this case, but it is not fast enough; a better index would be required.
+
+下面为 CPU time and the I/O time overlap 的解释
+An access method for sequential files reduces the wait times faced by a process through the technique of buffering of records, which tries to overlap the I/O and CPU activities in the process. 
+It is achieved through two means:
+? Prefetching an input record into an I/O buffer, or
+? Postwriting an output record from an I/O buffer
+	
+	
+
+	
+	
+	
+	
+	
