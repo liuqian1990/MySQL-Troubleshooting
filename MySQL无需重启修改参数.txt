@@ -1,0 +1,261 @@
+神奇的gdb,gdb核心转储
+
+https://mp.weixin.qq.com/s/DGnWbZV34iHsDLsk54J5CA
+
+(gdb) info thread
+  Id   Target Id         Frame 
+  62   Thread 0x7f36590ca700 (LWP 2187) "mysqld" 0x00007f3660e997da in sigwaitinfo () from /lib64/libc.so.6
+  61   Thread 0x7f364cfc1700 (LWP 2303) "mysqld" 0x00007f3662086644 in __io_getevents_0_4 () from /lib64/libaio.so.1
+  60   Thread 0x7f364c7c0700 (LWP 2304) "mysqld" 0x00007f3662086644 in __io_getevents_0_4 () from /lib64/libaio.so.1
+  59   Thread 0x7f364bfbf700 (LWP 2305) "mysqld" 0x00007f3662086644 in __io_getevents_0_4 () from /lib64/libaio.so.1
+  58   Thread 0x7f364b7be700 (LWP 2306) "mysqld" 0x00007f3662086644 in __io_getevents_0_4 () from /lib64/libaio.so.1
+  57   Thread 0x7f364afbd700 (LWP 2307) "mysqld" 0x00007f3662086644 in __io_getevents_0_4 () from /lib64/libaio.so.1
+  56   Thread 0x7f364a7bc700 (LWP 2308) "mysqld" 0x00007f3662086644 in __io_getevents_0_4 () from /lib64/libaio.so.1
+  55   Thread 0x7f3649fbb700 (LWP 2309) "mysqld" 0x00007f3662086644 in __io_getevents_0_4 () from /lib64/libaio.so.1
+  54   Thread 0x7f36497ba700 (LWP 2310) "mysqld" 0x00007f3662086644 in __io_getevents_0_4 () from /lib64/libaio.so.1
+  53   Thread 0x7f3648fb9700 (LWP 2311) "mysqld" 0x00007f3662086644 in __io_getevents_0_4 () from /lib64/libaio.so.1
+  52   Thread 0x7f36487b8700 (LWP 2312) "mysqld" 0x00007f3662086644 in __io_getevents_0_4 () from /lib64/libaio.so.1
+  51   Thread 0x7f3647fb7700 (LWP 2313) "mysqld" 0x00007f3662293ab2 in pthread_cond_timedwait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  50   Thread 0x7f3647590700 (LWP 2323) "mysqld" 0x00007f3662293ab2 in pthread_cond_timedwait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  49   Thread 0x7f3646d8f700 (LWP 2324) "mysqld" 0x00007f3662293ab2 in pthread_cond_timedwait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  48   Thread 0x7f364658e700 (LWP 2325) "mysqld" 0x00007f3662293ab2 in pthread_cond_timedwait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  47   Thread 0x7f3645d8d700 (LWP 2326) "mysqld" 0x00007f366229699d in nanosleep () from /lib64/libpthread.so.0
+  46   Thread 0x7f364558c700 (LWP 2327) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  45   Thread 0x7f3644d8b700 (LWP 2328) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  44   Thread 0x7f363ffff700 (LWP 2329) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  43   Thread 0x7f363f7fe700 (LWP 2330) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  42   Thread 0x7f363effd700 (LWP 2331) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  41   Thread 0x7f363e7fc700 (LWP 2332) "mysqld" 0x00007f3662293ab2 in pthread_cond_timedwait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  40   Thread 0x7f363dffb700 (LWP 2333) "mysqld" 0x00007f3662293ab2 in pthread_cond_timedwait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  39   Thread 0x7f363d7fa700 (LWP 2334) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  38   Thread 0x7f36440ba700 (LWP 2335) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  37   Thread 0x7f3644079700 (LWP 2336) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  36   Thread 0x7f363cdf6700 (LWP 2337) "mysqld" 0x00007f3662296ec1 in sigwait () from /lib64/libpthread.so.0
+  35   Thread 0x7f363cdb5700 (LWP 2339) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  34   Thread 0x7f361f618700 (LWP 8804) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  33   Thread 0x7f361f820700 (LWP 8812) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  32   Thread 0x7f361f8a2700 (LWP 8814) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  31   Thread 0x7f361fe38700 (LWP 8846) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  30   Thread 0x7f361ff7d700 (LWP 9178) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  29   Thread 0x7f361f79e700 (LWP 9179) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  28   Thread 0x7f363c0d1700 (LWP 9182) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  27   Thread 0x7f363c090700 (LWP 9185) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  26   Thread 0x7f363c153700 (LWP 9221) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  25   Thread 0x7f361fe79700 (LWP 9224) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  24   Thread 0x7f361fc30700 (LWP 9225) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  23   Thread 0x7f361f8e3700 (LWP 9228) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  22   Thread 0x7f361f71c700 (LWP 9231) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  21   Thread 0x7f361f249700 (LWP 9234) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  20   Thread 0x7f361f7df700 (LWP 9235) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  19   Thread 0x7f361f9a6700 (LWP 9259) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  18   Thread 0x7f361fcb2700 (LWP 9264) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+---Type <return> to continue, or q <return> to quit---
+  17   Thread 0x7f361f69a700 (LWP 9265) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  16   Thread 0x7f361fb6d700 (LWP 9266) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  15   Thread 0x7f361fd34700 (LWP 9270) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  14   Thread 0x7f361ff3c700 (LWP 9272) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  13   Thread 0x7f361f208700 (LWP 9273) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  12   Thread 0x7f361feba700 (LWP 9274) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  11   Thread 0x7f361f659700 (LWP 9297) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  10   Thread 0x7f363c5b4700 (LWP 9298) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  9    Thread 0x7f361f555700 (LWP 9299) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  8    Thread 0x7f361f492700 (LWP 9300) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  7    Thread 0x7f361fd75700 (LWP 9301) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  6    Thread 0x7f361fa28700 (LWP 9314) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  5    Thread 0x7f361f5d7700 (LWP 9316) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  4    Thread 0x7f361fc71700 (LWP 9317) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+  3    Thread 0x7f361f410700 (LWP 9318) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+  2    Thread 0x7f361ffbe700 (LWP 9319) "mysqld" 0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+* 1    Thread 0x7f36626b8740 (LWP 1519) "mysqld" 0x00007f3660f4eb7d in poll () from /lib64/libc.so.6
+
+
+
+
+
+(gdb) thread 2
+[Switching to thread 2 (Thread 0x7f361ffbe700 (LWP 9319))]
+#0  0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+(gdb) bt
+#0  0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+#1  0x0000000000dc8238 in native_cond_wait (mutex=0x1e8b320 <Per_thread_connection_handler::LOCK_thread_cache>, cond=0x1e8b360 <Per_thread_connection_handler::COND_thread_cache>)
+    at /export/home/pb2/build/sb_0-21378219-1480347226.17/mysql-5.7.17/include/thr_cond.h:140
+#2  my_cond_wait (mp=0x1e8b320 <Per_thread_connection_handler::LOCK_thread_cache>, cond=0x1e8b360 <Per_thread_connection_handler::COND_thread_cache>)
+    at /export/home/pb2/build/sb_0-21378219-1480347226.17/mysql-5.7.17/include/thr_cond.h:195
+#3  inline_mysql_cond_wait (src_line=145, that=0x1e8b360 <Per_thread_connection_handler::COND_thread_cache>, mutex=<optimized out>, src_file=<optimized out>)
+    at /export/home/pb2/build/sb_0-21378219-1480347226.17/mysql-5.7.17/include/mysql/psi/mysql_thread.h:1184
+#4  Per_thread_connection_handler::block_until_new_connection () at /export/home/pb2/build/sb_0-21378219-1480347226.17/mysql-5.7.17/sql/conn_handler/connection_handler_per_thread.cc:145
+#5  0x0000000000dc8438 in handle_connection (arg=<optimized out>) at /export/home/pb2/build/sb_0-21378219-1480347226.17/mysql-5.7.17/sql/conn_handler/connection_handler_per_thread.cc:329
+#6  0x0000000000f7df44 in pfs_spawn_thread (arg=0x379eef0) at /export/home/pb2/build/sb_0-21378219-1480347226.17/mysql-5.7.17/storage/perfschema/pfs.cc:2188
+#7  0x00007f366228fdf5 in start_thread () from /lib64/libpthread.so.0
+#8  0x00007f3660f591ad in clone () from /lib64/libc.so.6
+
+(gdb) frame 5
+#5  0x0000000000dc8438 in handle_connection (arg=<optimized out>) at /export/home/pb2/build/sb_0-21378219-1480347226.17/mysql-5.7.17/sql/conn_handler/connection_handler_per_thread.cc:329
+329	/export/home/pb2/build/sb_0-21378219-1480347226.17/mysql-5.7.17/sql/conn_handler/connection_handler_per_thread.cc: 没有那个文件或目录.
+(gdb) frame 0
+#0  0x00007f3662293705 in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+(gdb) frame 1
+#1  0x0000000000dc8238 in native_cond_wait (mutex=0x1e8b320 <Per_thread_connection_handler::LOCK_thread_cache>, cond=0x1e8b360 <Per_thread_connection_handler::COND_thread_cache>)
+    at /export/home/pb2/build/sb_0-21378219-1480347226.17/mysql-5.7.17/include/thr_cond.h:140
+140	/export/home/pb2/build/sb_0-21378219-1480347226.17/mysql-5.7.17/include/thr_cond.h: 没有那个文件或目录.
+(gdb) 
+
+
+
+
+http://mysqlbugs.blogspot.hk/2012/09/how-to-obtain-all-executing-queries.html
+
+set history filename gdb_history.txt
+set history size 32000
+set history save on
+set pagination off
+set logging overwrite on
+set logging on
+set print elements 1024
+set print pretty on
+set print object on
+define print_thds
+        set $thd = ($arg0)->first
+        while ( $thd != 0 && $thd->next != 0)
+              
+                set $thread_id=$thd->thread_id
+                set $cmd=$thd->command
+                set $proc_info=$thd->proc_info ? $thd->proc_info : ""
+                 set $query = $thd->query_string->string
+printf "thread id: %lu\n",$thread_id print $cmd
+print $proc_info
+print $query.str
+printf "\n\n"      
+                set $thd=$thd->next
+        end
+end
+document print_thds
+  print_thds : Dumps the query_strings in a list of THD objects
+end
+
+
+每个线程堆栈
+Check stack traces (and variables), per thread:
+thread apply all bt [full]
+
+打印参数
+Print variables, up to complex one:
+thread 1
+print do_command::thd->query_string.string.str
+
+设置参数
+gdb -p `pidof mysqld` -ex "set max_connections=6000" -batch 
+
+
+
+
+gdb工具的用途
+
+1.Check stack traces (and variables), per thread:
+thread apply all bt [full]
+
+2.Print variables, up to complex one:
+thread 1
+print do_command::thd->query_string.string.str
+
+3.Set new values for variables (global and per thread, even those formally
+read-only in MySQL while it’s running):
+set max_connections=5000
+set opt_log_slave_updates=1
+
+3.Call functions (that may do complex changes):
+call rpl_filter->add_do_db(strdup("hehehe"))
+
+4.Set breakpoints and watchpoints
+
+5.Work interactively or use gdb as a command line utility (-batch)
+
+6.Use macros, Python scripting, more…
+
+7.All these may not work, fail, hang, crash, produce obscure errors…
+
+8.You have to read and understand the source code
+
+
+
+https://dom.as/2009/07/30/evil-replication-management/
+太神奇了
+mysql> show variables like "log_slave_updates";
++-------------------+-------+
+| Variable_name     | Value |
++-------------------+-------+
+| log_slave_updates | OFF   |
++-------------------+-------+
+1 row in set (0.00 sec)
+
+mysql> SET log_slave_updates=1;
+ERROR 1238 (HY000): Variable 'log_slave_updates' is a read only variable
+mysql> system gdb -ex "set opt_log_slave_updates =1" -p $(pidof mysqld) -batch
+[New LWP 1533]
+[New LWP 1512]
+[New LWP 1511]
+[New LWP 1510]
+[New LWP 1509]
+[New LWP 1508]
+[New LWP 1507]
+[New LWP 1506]
+[New LWP 1505]
+[New LWP 1504]
+[New LWP 1503]
+[New LWP 1502]
+[New LWP 1501]
+[New LWP 1498]
+[New LWP 1497]
+[New LWP 1496]
+[New LWP 1495]
+[New LWP 1494]
+[New LWP 1493]
+[New LWP 1492]
+[New LWP 1491]
+[New LWP 1490]
+[New LWP 1489]
+[Thread debugging using libthread_db enabled]
+0x00007f29e04281b3 in poll () from /lib64/libc.so.6
+mysql> show variables like "log_slave_updates";
++-------------------+-------+
+| Variable_name     | Value |
++-------------------+-------+
+| log_slave_updates | ON    |
++-------------------+-------+
+1 row in set (0.00 sec)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
