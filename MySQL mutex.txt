@@ -1,0 +1,89 @@
+MySQL Mutex&rwlock tools
+
+http://www.tocker.ca/2013/11/27/what-is-a-mutex-anyway.html
+https://en.wikipedia.org/wiki/Mutual_exclusion
+http://www.markleith.co.uk/2010/09/24/tracking-mutex-locks-in-a-process-list-mysql-55s-performance_schema/
+https://www.percona.com/doc/percona-server/5.5/scalability/innodb_split_buf_pool_mutex.html
+http://dimitrik.free.fr/blog/archives/2012/10/mysql-performance-innodb-buffer-pool-instances-in-56.html
+https://www.percona.com/blog/2011/12/02/kernel_mutex-problem-or-double-throughput-with-single-variable/
+https://poormansprofiler.org/
+http://jamesgolick.com/2012/7/18/innodb-kernel-mutex-contention-and-memory-allocators.html#preload-instructions
+
+
+mysql主要有以下几类mutexs
+Innodb buffer_pool_mutex
+Log_sys mutex
+Kernel_mutex
+
+一、Innodb buffer_pool_mutex
+buf_pool_mutex	      flags about IO
+LRU_list_mutex	      LRU list of blocks in buffer pool
+flush_list_mutex	  flush list of dirty blocks to flush
+page_hash_latch	      hash table to search blocks in buffer pool
+free_list_mutex	      list of free blocks in buffer pool
+zip_free_mutex	      lists of free area to treat compressed pages
+zip_hash_mutex	      hash table to search compressed pages
+
+
+查看工具 pager less SHOW ENGINE INNODB STATUS
+查看信号量这块
+----------
+SEMAPHORES
+----------
+OS WAIT ARRAY INFO: reservation count 77
+OS WAIT ARRAY INFO: signal count 44
+RW-shared spins 0, rounds 82, OS waits 32
+RW-excl spins 0, rounds 984, OS waits 4
+RW-sx spins 0, rounds 0, OS waits 0
+Spin rounds per wait: 82.00 RW-shared, 984.00 RW-excl, 0.00 RW-sx
+------------
+
+
+buf0buf.cc文件中的语句
+Buffer pool struct
+		------------------
+The buffer buf_pool contains a single mutex which protects all the
+control data structures of the buf_pool. The content of a buffer frame is
+protected by a separate read-write lock in its control block, though.
+These locks can be locked and unlocked without owning the buf_pool->mutex.
+The OS events in the buf_pool struct can be waited for without owning the
+buf_pool->mutex.
+
+The buf_pool->mutex is a hot-spot in main memory, causing a lot of
+memory bus traffic on multiprocessor systems when processors
+alternately access the mutex. On our Pentium, the mutex is accessed
+maybe every 10 microseconds. We gave up the solution to have mutexes
+for each control block, for instance, because it seemed to be
+complicated.
+
+A solution to reduce mutex contention of the buf_pool->mutex is to
+create a separate mutex for the page hash table. On Pentium,
+accessing the hash table takes 2 microseconds, about half
+of the total buf_pool->mutex hold time.
+
+
+
+
+Mutexes are mutually exclusive locks and are designed to prevent concurrent access to resources that in doing so may result in unsafe conditions.
+They are required as part of virtually all multi-threaded applications (not just MySQL), and are not something that you can specifically prevent from happening. 
+This is a different concept to row-locks and table locks.
+
+mutexs是一个互相排斥的锁，目的是为了保护并发访问正在做资源
+mutexs无形中作为多线程模型中的必须的一部分(不仅仅是mysql),
+这是一个不同的概念对于读写锁和表锁
+Some examples
+If the InnoDB buffer pool is full, internally free space needs to be created in order to(为了) be able to load your desired(想得到的) page into memory.
+ What you don't want, is in between freeing and loading somebody else to take your desired free-slot.
+
+When a page becomes too full, it may need to split data into other pages. 
+It is possible that there could be a thread deadlock if two pages left and right of each-other reach this condition at once and can't decide who should proceed first.
+
+
+工具查看mutexs
+Show engine InnoDB mutex
+Show engine innodb status
+PERFORMANCE_SCHEMA 
+perf
+
+
+
