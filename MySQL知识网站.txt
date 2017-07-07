@@ -1,0 +1,2 @@
+http://shlomi-noach.github.io/awesome-mysql/
+https://github.com/shlomi-noach
