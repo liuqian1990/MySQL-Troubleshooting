@@ -1,0 +1,66 @@
+mysql火焰图制作 On-CPU
+参考 https://poormansprofiler.org/
+     http://www.brendangregg.com/FlameGraphs/cpuflamegraphs.html#perf
+	 https://github.com/brendangregg/FlameGraph/
+	 http://queue.acm.org/detail.cfm?id=2927301
+	 
+	 
+火焰图其实就是对内部函数调用比例图从而找到瓶颈点
+对内部函数跟踪的工具比较多dtrace systemtap gdb 等
+
+我这用的方法是通过gdb生成,所有需要(下载地址https://github.com/brendangregg/FlameGraph/blob/master/stackcollapse-gdb.pl)，
+
+#!/bin/sh
+for x in $(seq 1 5)
+do
+     gdb -ex "set pagination 0" -ex "thread apply all bt" -batch -p `pidof mysqld` >> gdb.txt
+     sleep 0.01
+done
+
+cat gdb.txt | perl stackcollapse-gdb.pl > out.gdb-folded
+perl flamegraph.pl out.gdb-folded > gdb-mysql.svg
+
+perf 收集
+https://github.com/brendangregg/FlameGraph/blob/master/stackcollapse-perf.pl
+https://github.com/torvalds/linux/tree/master/tools/perf/Documentation
+
+perf record -a -g -F 997 --pid `pidof mysqld` sleep 60
+perf script | /home/soft/FlameGraph/stackcollapse-perf.pl > out.perf-folded
+/home/soft/FlameGraph/flamegraph.pl out.perf-folded > perf-mysql.svg
+
+Off-CPU
+http://www.brendangregg.com/blog/2015-02-26/linux-perf-off-cpu-flame-graph.html
+http://oliveryang.net/2015/07/linux-scheduler-profiling-2/
+https://github.com/openresty/stapxx
+https://github.com/openresty/nginx-systemtap-toolkit
+
+
+perf script -F comm,pid,tid,cpu,time,period,event,ip,sym,dso | awk '
+    NF > 4 { exec = $1; period_ms = int($5 / 1000000) }
+    NF > 1 && NF <= 4 && period_ms > 0 { print $2 }
+    NF < 2 && period_ms > 0 { printf "%s\n%d\n\n", exec, period_ms }' | \
+    /home/soft/FlameGraph/stackcollapse.pl | \
+   /home/soft/FlameGraph/flamegraph.pl --countname=ms --title="Off-CPU Time Flame Graph" --colors=io > offcpu.svg
+   
+   
+   
+   
+   
+   http://www.brendangregg.com/blog/2014-10-31/cpi-flame-graphs.html
+   CPI
+   性能监视计数器，或PMC(Performance Monitoring Counters)
+   
+   Understanding what the CPUs are really doing helps direct performance tuning. 
+   The simplest way is to measure the average cycles-per-instruction (CPI) ratio: higher values mean it takes more cycles to complete instructions (often "stalled cycles(失速的)" waiting on memory I/O).
+   This is usually studied as a system-wide metric
+   
+   
+   https://github.com/brendangregg/FlameGraph  监控LINUX整体性能
+   
+   perf record -F 99 -a -g -- sleep 60
+   
+   
+   定位mutex 
+   perf report --stdio
+
+
