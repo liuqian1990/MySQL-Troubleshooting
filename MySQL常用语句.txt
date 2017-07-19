@@ -60,3 +60,15 @@ AS a ,
 (SELECT TABLE_NAME,TABLE_ROWS FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'test')
  AS b
  WHERE a.TABLE_NAME = b.TABLE_NAME and b.TABLE_ROWS != 0 order by CARDINALITY1;
+ 
+ 
+##### 查看InnoDB无效空间大小
+http://jfg-mysql.blogspot.com/2017/07/innodb-compaction.html?m=1&from=groupmessage&isappinstalled=0
+# sts="show table status like 'table1'\G"
+# mysql my_schema <<< "$sts" | awk '$1=="Data_free:"{$2 /= 1024*1024*1024; print}'
+Data_free: 117.709
+
+# date; ls -lh table2.ibd; \
+  mysql my_schema <<< "stop slave; optimize table local table2; start slave"; \
+  ls -lh table2.ibd; date
+
