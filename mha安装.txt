@@ -1,0 +1,365 @@
+下载网址  https://github.com/yoshinorim/mha4mysql-manager/wiki/Downloads
+ 参考     https://ruiaylin.github.io/2015/03/03/master-ha-install-conf/
+          http://keithlan.github.io/2016/08/05/mha_practice/
+		  http://www.cnblogs.com/ivictor/p/5686275.html
+		  
+
+MHA软件由两部分组成：Manager工具包和Node工具包，具体说明如下：
+MHA Manager：
+1. masterha_check_ssh：检查MHA的SSH配置状况
+2. masterha_check_repl：检查MySQL的复制状况
+3. masterha_manager：启动MHA
+4. masterha_check_status：检测当前MHA运行状态
+5. masterha_master_monitor：检测master是否宕机
+6. masterha_master_switch：控制故障转移（自动或手动）
+7. masterha_conf_host：添加或删除配置的server信息
+8. masterha_stop：关闭MHA
+
+
+MHA Node:
+save_binary_logs：保存或复制master的二进制日志
+apply_diff_relay_logs：识别差异的relay log并将差异的event应用到其它slave中
+filter_mysqlbinlog：去除不必要的ROLLBACK事件（MHA已不再使用这个工具）
+purge_relay_logs：消除中继日志（不会堵塞SQL线程）
+
+
+另有如下几个脚本需自定义：
+1. master_ip_failover：管理VIP
+2. master_ip_online_change：
+3. masterha_secondary_check：当MHA manager检测到master不可用时，通过masterha_secondary_check脚本来进一步确认，减低误切的风险。
+4. send_report：当发生故障切换时，可通过send_report脚本发送告警信息。
+   
+
+####安装节点
+tar -zxvf mha4mysql-node-0.56.tar.gz
+cd mha4mysql-node-0.56
+yum install epel-release
+yum install -y perl-devel perl-CPAN perl-DBD-mysql perl-DBI perl-Config-Tiny perl-Log-Dispatch perl-Parallel-ForkManager
+
+[root@localhost mha4mysql-node-0.56]# perl Makefile.PL 
+*** Module::AutoInstall version 1.03
+*** Checking for Perl dependencies...
+[Core Features]
+- DBI        ...loaded. (1.627)
+- DBD::mysql ...loaded. (4.023)
+*** Module::AutoInstall configuration finished.
+Writing Makefile for mha4mysql::node
+
+[root@localhost mha4mysql-node-0.56]# make
+cp lib/MHA/BinlogManager.pm blib/lib/MHA/BinlogManager.pm
+cp lib/MHA/BinlogPosFindManager.pm blib/lib/MHA/BinlogPosFindManager.pm
+cp lib/MHA/BinlogPosFinderXid.pm blib/lib/MHA/BinlogPosFinderXid.pm
+cp lib/MHA/BinlogHeaderParser.pm blib/lib/MHA/BinlogHeaderParser.pm
+cp lib/MHA/BinlogPosFinder.pm blib/lib/MHA/BinlogPosFinder.pm
+cp lib/MHA/BinlogPosFinderElp.pm blib/lib/MHA/BinlogPosFinderElp.pm
+cp lib/MHA/NodeUtil.pm blib/lib/MHA/NodeUtil.pm
+cp lib/MHA/SlaveUtil.pm blib/lib/MHA/SlaveUtil.pm
+cp lib/MHA/NodeConst.pm blib/lib/MHA/NodeConst.pm
+cp bin/filter_mysqlbinlog blib/script/filter_mysqlbinlog
+/usr/bin/perl "-Iinc" -MExtUtils::MY -e 'MY->fixin(shift)' -- blib/script/filter_mysqlbinlog
+cp bin/apply_diff_relay_logs blib/script/apply_diff_relay_logs
+/usr/bin/perl "-Iinc" -MExtUtils::MY -e 'MY->fixin(shift)' -- blib/script/apply_diff_relay_logs
+cp bin/purge_relay_logs blib/script/purge_relay_logs
+/usr/bin/perl "-Iinc" -MExtUtils::MY -e 'MY->fixin(shift)' -- blib/script/purge_relay_logs
+cp bin/save_binary_logs blib/script/save_binary_logs
+/usr/bin/perl "-Iinc" -MExtUtils::MY -e 'MY->fixin(shift)' -- blib/script/save_binary_logs
+Manifying blib/man1/filter_mysqlbinlog.1
+Manifying blib/man1/apply_diff_relay_logs.1
+Manifying blib/man1/purge_relay_logs.1
+Manifying blib/man1/save_binary_logs.1
+
+[root@localhost mha4mysql-node-0.56]# make install
+Installing /usr/local/share/perl5/MHA/BinlogManager.pm
+Installing /usr/local/share/perl5/MHA/BinlogPosFindManager.pm
+Installing /usr/local/share/perl5/MHA/BinlogPosFinderXid.pm
+Installing /usr/local/share/perl5/MHA/BinlogHeaderParser.pm
+Installing /usr/local/share/perl5/MHA/BinlogPosFinder.pm
+Installing /usr/local/share/perl5/MHA/BinlogPosFinderElp.pm
+Installing /usr/local/share/perl5/MHA/NodeUtil.pm
+Installing /usr/local/share/perl5/MHA/SlaveUtil.pm
+Installing /usr/local/share/perl5/MHA/NodeConst.pm
+Installing /usr/local/share/man/man1/filter_mysqlbinlog.1
+Installing /usr/local/share/man/man1/apply_diff_relay_logs.1
+Installing /usr/local/share/man/man1/purge_relay_logs.1
+Installing /usr/local/share/man/man1/save_binary_logs.1
+Installing /usr/local/bin/filter_mysqlbinlog
+Installing /usr/local/bin/apply_diff_relay_logs
+Installing /usr/local/bin/purge_relay_logs
+Installing /usr/local/bin/save_binary_logs
+Appending installation info to /usr/lib64/perl5/perllocal.pod
+
+
+####安装管理,管理需要node包,所以管理节点需要安装上节点包
+tar -zxvf mha4mysql-manager-0.56.tar.gz
+[root@localhost mha4mysql-manager-0.56]# perl Makefile.PL 
+*** Module::AutoInstall version 1.03
+*** Checking for Perl dependencies...
+[Core Features]
+- DBI                   ...loaded. (1.627)
+- DBD::mysql            ...loaded. (4.023)
+- Time::HiRes           ...loaded. (1.9725)
+- Config::Tiny          ...loaded. (2.14)
+- Log::Dispatch         ...loaded. (2.41)
+- Parallel::ForkManager ...loaded. (1.05)
+- MHA::NodeConst        ...loaded. (0.56)
+*** Module::AutoInstall configuration finished.
+Writing Makefile for mha4mysql::manager
+
+[root@localhost mha4mysql-manager-0.56]# make
+cp lib/MHA/ManagerUtil.pm blib/lib/MHA/ManagerUtil.pm
+cp lib/MHA/Config.pm blib/lib/MHA/Config.pm
+cp lib/MHA/HealthCheck.pm blib/lib/MHA/HealthCheck.pm
+cp lib/MHA/ManagerConst.pm blib/lib/MHA/ManagerConst.pm
+cp lib/MHA/ServerManager.pm blib/lib/MHA/ServerManager.pm
+cp lib/MHA/ManagerAdmin.pm blib/lib/MHA/ManagerAdmin.pm
+cp lib/MHA/FileStatus.pm blib/lib/MHA/FileStatus.pm
+cp lib/MHA/ManagerAdminWrapper.pm blib/lib/MHA/ManagerAdminWrapper.pm
+cp lib/MHA/MasterFailover.pm blib/lib/MHA/MasterFailover.pm
+cp lib/MHA/MasterRotate.pm blib/lib/MHA/MasterRotate.pm
+cp lib/MHA/MasterMonitor.pm blib/lib/MHA/MasterMonitor.pm
+cp lib/MHA/SSHCheck.pm blib/lib/MHA/SSHCheck.pm
+cp lib/MHA/Server.pm blib/lib/MHA/Server.pm
+cp lib/MHA/DBHelper.pm blib/lib/MHA/DBHelper.pm
+cp bin/masterha_stop blib/script/masterha_stop
+/usr/bin/perl "-Iinc" -MExtUtils::MY -e 'MY->fixin(shift)' -- blib/script/masterha_stop
+cp bin/masterha_conf_host blib/script/masterha_conf_host
+/usr/bin/perl "-Iinc" -MExtUtils::MY -e 'MY->fixin(shift)' -- blib/script/masterha_conf_host
+cp bin/masterha_check_repl blib/script/masterha_check_repl
+/usr/bin/perl "-Iinc" -MExtUtils::MY -e 'MY->fixin(shift)' -- blib/script/masterha_check_repl
+cp bin/masterha_check_status blib/script/masterha_check_status
+/usr/bin/perl "-Iinc" -MExtUtils::MY -e 'MY->fixin(shift)' -- blib/script/masterha_check_status
+cp bin/masterha_master_monitor blib/script/masterha_master_monitor
+/usr/bin/perl "-Iinc" -MExtUtils::MY -e 'MY->fixin(shift)' -- blib/script/masterha_master_monitor
+cp bin/masterha_check_ssh blib/script/masterha_check_ssh
+/usr/bin/perl "-Iinc" -MExtUtils::MY -e 'MY->fixin(shift)' -- blib/script/masterha_check_ssh
+cp bin/masterha_master_switch blib/script/masterha_master_switch
+/usr/bin/perl "-Iinc" -MExtUtils::MY -e 'MY->fixin(shift)' -- blib/script/masterha_master_switch
+cp bin/masterha_secondary_check blib/script/masterha_secondary_check
+/usr/bin/perl "-Iinc" -MExtUtils::MY -e 'MY->fixin(shift)' -- blib/script/masterha_secondary_check
+cp bin/masterha_manager blib/script/masterha_manager
+/usr/bin/perl "-Iinc" -MExtUtils::MY -e 'MY->fixin(shift)' -- blib/script/masterha_manager
+Manifying blib/man1/masterha_stop.1
+Manifying blib/man1/masterha_conf_host.1
+Manifying blib/man1/masterha_check_repl.1
+Manifying blib/man1/masterha_check_status.1
+Manifying blib/man1/masterha_master_monitor.1
+Manifying blib/man1/masterha_check_ssh.1
+Manifying blib/man1/masterha_master_switch.1
+Manifying blib/man1/masterha_secondary_check.1
+Manifying blib/man1/masterha_manager.1
+
+[root@localhost mha4mysql-manager-0.56]# make install
+Installing /usr/local/share/perl5/MHA/ManagerUtil.pm
+Installing /usr/local/share/perl5/MHA/Config.pm
+Installing /usr/local/share/perl5/MHA/HealthCheck.pm
+Installing /usr/local/share/perl5/MHA/ManagerConst.pm
+Installing /usr/local/share/perl5/MHA/ServerManager.pm
+Installing /usr/local/share/perl5/MHA/ManagerAdmin.pm
+Installing /usr/local/share/perl5/MHA/FileStatus.pm
+Installing /usr/local/share/perl5/MHA/ManagerAdminWrapper.pm
+Installing /usr/local/share/perl5/MHA/MasterFailover.pm
+Installing /usr/local/share/perl5/MHA/MasterRotate.pm
+Installing /usr/local/share/perl5/MHA/MasterMonitor.pm
+Installing /usr/local/share/perl5/MHA/SSHCheck.pm
+Installing /usr/local/share/perl5/MHA/Server.pm
+Installing /usr/local/share/perl5/MHA/DBHelper.pm
+Installing /usr/local/share/man/man1/masterha_stop.1
+Installing /usr/local/share/man/man1/masterha_conf_host.1
+Installing /usr/local/share/man/man1/masterha_check_repl.1
+Installing /usr/local/share/man/man1/masterha_check_status.1
+Installing /usr/local/share/man/man1/masterha_master_monitor.1
+Installing /usr/local/share/man/man1/masterha_check_ssh.1
+Installing /usr/local/share/man/man1/masterha_master_switch.1
+Installing /usr/local/share/man/man1/masterha_secondary_check.1
+Installing /usr/local/share/man/man1/masterha_manager.1
+Installing /usr/local/bin/masterha_stop
+Installing /usr/local/bin/masterha_conf_host
+Installing /usr/local/bin/masterha_check_repl
+Installing /usr/local/bin/masterha_check_status
+Installing /usr/local/bin/masterha_master_monitor
+Installing /usr/local/bin/masterha_check_ssh
+Installing /usr/local/bin/masterha_master_switch
+Installing /usr/local/bin/masterha_secondary_check
+Installing /usr/local/bin/masterha_manager
+Appending installation info to /usr/lib64/perl5/perllocal.pod
+
+
+###授权用户
+CREATE USER 'mha'@'192.168.100.%' IDENTIFIED BY 'mha123';
+GRANT ALL ON *.* TO 'mha'@'192.168.60.%';
+
+
+###所有主机之间进行ssh授信
+
+
+####application configuration file
+
+vim /etc/app1.cnf
+[server default]
+# mysql user and password
+user=root
+password=mysqlpass
+# working directory on the manager
+manager_workdir=/var/log/masterha/app1
+# manager log file
+manager_log=/var/log/masterha/app1/app1.log
+# working directory on MySQL servers
+remote_workdir=/var/log/masterha/app1
+
+[server1]
+hostname=192.168.60.190
+
+[server2]
+hostname=192.168.60.191
+
+[server3]
+hostname=192.168.60.192
+
+
+####global configuration file
+vim /etc/masterha_default.cnf
+
+[server default]
+user=root
+password=4GcqLPp0eRRa
+ssh_user=root
+master_binlog_dir= /home/mysql/data80
+remote_workdir=/home/soft
+secondary_check_script= masterha_secondary_check -s 192.168.60.191 -s 192.168.60.192
+ping_interval=3
+master_ip_failover_script=/script/masterha/master_ip_failover
+shutdown_script= /script/masterha/power_manager
+report_script= /script/masterha/send_master_failover_mail
+
+
+###基本检测
+masterha_check_ssh  --global_conf=/etc/masterha_default.cnf --conf=/etc/app1.cnf  ###检查ssh授信
+
+[root@localhost scripts]# masterha_check_ssh --global_conf=/etc/masterha_default.cnf --conf=/etc/app1.cnf
+Tue Sep  5 20:54:47 2017 - [info] Reading default configuration from /etc/masterha_default.cnf..
+Tue Sep  5 20:54:47 2017 - [info] Reading application default configuration from /etc/app1.cnf..
+Tue Sep  5 20:54:47 2017 - [info] Reading server configuration from /etc/app1.cnf..
+Tue Sep  5 20:54:47 2017 - [info] Starting SSH connection tests..
+Tue Sep  5 20:54:48 2017 - [debug] 
+Tue Sep  5 20:54:47 2017 - [debug]  Connecting via SSH from root@192.168.60.190(192.168.60.190:22) to root@192.168.60.191(192.168.60.191:22)..
+Tue Sep  5 20:54:47 2017 - [debug]   ok.
+Tue Sep  5 20:54:47 2017 - [debug]  Connecting via SSH from root@192.168.60.190(192.168.60.190:22) to root@192.168.60.192(192.168.60.192:22)..
+Tue Sep  5 20:54:48 2017 - [debug]   ok.
+Tue Sep  5 20:54:49 2017 - [debug] 
+Tue Sep  5 20:54:47 2017 - [debug]  Connecting via SSH from root@192.168.60.191(192.168.60.191:22) to root@192.168.60.190(192.168.60.190:22)..
+Tue Sep  5 20:54:48 2017 - [debug]   ok.
+Tue Sep  5 20:54:48 2017 - [debug]  Connecting via SSH from root@192.168.60.191(192.168.60.191:22) to root@192.168.60.192(192.168.60.192:22)..
+Tue Sep  5 20:54:48 2017 - [debug]   ok.
+Tue Sep  5 20:54:49 2017 - [debug] 
+Tue Sep  5 20:54:48 2017 - [debug]  Connecting via SSH from root@192.168.60.192(192.168.60.192:22) to root@192.168.60.190(192.168.60.190:22)..
+Tue Sep  5 20:54:48 2017 - [debug]   ok.
+Tue Sep  5 20:54:48 2017 - [debug]  Connecting via SSH from root@192.168.60.192(192.168.60.192:22) to root@192.168.60.191(192.168.60.191:22)..
+Tue Sep  5 20:54:49 2017 - [debug]   ok.
+Tue Sep  5 20:54:49 2017 - [info] All SSH connection tests passed successfully.
+
+
+masterha_check_repl --conf=/etc/app1.cnf  ###检查主从复制
+
+[root@localhost scripts]# masterha_check_repl --conf=/etc/app1.cnf
+Tue Sep  5 21:04:04 2017 - [info] Reading default configuration from /etc/masterha_default.cnf..
+Tue Sep  5 21:04:04 2017 - [info] Reading application default configuration from /etc/app1.cnf..
+Tue Sep  5 21:04:04 2017 - [info] Reading server configuration from /etc/app1.cnf..
+Tue Sep  5 21:04:04 2017 - [info] MHA::MasterMonitor version 0.56.
+Tue Sep  5 21:04:05 2017 - [info] GTID failover mode = 1
+Tue Sep  5 21:04:05 2017 - [info] Dead Servers:
+Tue Sep  5 21:04:05 2017 - [info] Alive Servers:
+Tue Sep  5 21:04:05 2017 - [info]   192.168.60.190(192.168.60.190:3306)
+Tue Sep  5 21:04:05 2017 - [info]   192.168.60.191(192.168.60.191:3306)
+Tue Sep  5 21:04:05 2017 - [info]   192.168.60.192(192.168.60.192:3306)
+Tue Sep  5 21:04:05 2017 - [info] Alive Slaves:
+Tue Sep  5 21:04:05 2017 - [info]   192.168.60.191(192.168.60.191:3306)  Version=5.7.17-log (oldest major version between slaves) log-bin:enabled
+Tue Sep  5 21:04:05 2017 - [info]     GTID ON
+Tue Sep  5 21:04:05 2017 - [info]     Replicating from 192.168.60.190(192.168.60.190:3306)
+Tue Sep  5 21:04:05 2017 - [info]   192.168.60.192(192.168.60.192:3306)  Version=5.7.17-log (oldest major version between slaves) log-bin:enabled
+Tue Sep  5 21:04:05 2017 - [info]     GTID ON
+Tue Sep  5 21:04:05 2017 - [info]     Replicating from 192.168.60.190(192.168.60.190:3306)
+Tue Sep  5 21:04:05 2017 - [info] Current Alive Master: 192.168.60.190(192.168.60.190:3306)
+Tue Sep  5 21:04:05 2017 - [info] Checking slave configurations..
+Tue Sep  5 21:04:05 2017 - [info] Checking replication filtering settings..
+Tue Sep  5 21:04:05 2017 - [info]  binlog_do_db= , binlog_ignore_db= 
+Tue Sep  5 21:04:05 2017 - [info]  Replication filtering check ok.
+Tue Sep  5 21:04:05 2017 - [info] GTID (with auto-pos) is supported. Skipping all SSH and Node package checking.
+Tue Sep  5 21:04:05 2017 - [info] Checking SSH publickey authentication settings on the current master..
+Tue Sep  5 21:04:05 2017 - [info] HealthCheck: SSH to 192.168.60.190 is reachable.
+Tue Sep  5 21:04:05 2017 - [info] 
+192.168.60.190(192.168.60.190:3306) (current master)
+ +--192.168.60.191(192.168.60.191:3306)
+ +--192.168.60.192(192.168.60.192:3306)
+
+Tue Sep  5 21:04:05 2017 - [info] Checking replication health on 192.168.60.191..
+Tue Sep  5 21:04:05 2017 - [info]  ok.
+Tue Sep  5 21:04:05 2017 - [info] Checking replication health on 192.168.60.192..
+Tue Sep  5 21:04:05 2017 - [info]  ok.
+Tue Sep  5 21:04:05 2017 - [info] Checking master_ip_failover_script status:
+Tue Sep  5 21:04:05 2017 - [info]   /root/master_ip_failover --command=status --ssh_user=root --orig_master_host=192.168.60.190 --orig_master_ip=192.168.60.190 --orig_master_port=3306 
+
+
+IN SCRIPT TEST====/sbin/ifconfig enp0s3:1 down==/sbin/ifconfig enp0s3:1 192.168.60.220/24===
+
+Checking the Status of the script.. OK 
+Tue Sep  5 21:04:06 2017 - [info]  OK.
+Tue Sep  5 21:04:06 2017 - [warning] shutdown_script is not defined.
+Tue Sep  5 21:04:06 2017 - [info] Got exit code 0 (Not master dead).
+
+MySQL Replication Health is OK.
+[root@localhost scripts]# masterha_check_repl --conf=/etc/app1.cnf
+Tue Sep  5 21:04:33 2017 - [info] Reading default configuration from /etc/masterha_default.cnf..
+Tue Sep  5 21:04:33 2017 - [info] Reading application default configuration from /etc/app1.cnf..
+Tue Sep  5 21:04:33 2017 - [info] Reading server configuration from /etc/app1.cnf..
+Tue Sep  5 21:04:33 2017 - [info] MHA::MasterMonitor version 0.56.
+Tue Sep  5 21:04:34 2017 - [info] GTID failover mode = 1
+Tue Sep  5 21:04:34 2017 - [info] Dead Servers:
+Tue Sep  5 21:04:34 2017 - [info] Alive Servers:
+Tue Sep  5 21:04:34 2017 - [info]   192.168.60.190(192.168.60.190:3306)
+Tue Sep  5 21:04:34 2017 - [info]   192.168.60.191(192.168.60.191:3306)
+Tue Sep  5 21:04:34 2017 - [info]   192.168.60.192(192.168.60.192:3306)
+Tue Sep  5 21:04:34 2017 - [info] Alive Slaves:
+Tue Sep  5 21:04:34 2017 - [info]   192.168.60.191(192.168.60.191:3306)  Version=5.7.17-log (oldest major version between slaves) log-bin:enabled
+Tue Sep  5 21:04:34 2017 - [info]     GTID ON
+Tue Sep  5 21:04:34 2017 - [info]     Replicating from 192.168.60.190(192.168.60.190:3306)
+Tue Sep  5 21:04:34 2017 - [info]   192.168.60.192(192.168.60.192:3306)  Version=5.7.17-log (oldest major version between slaves) log-bin:enabled
+Tue Sep  5 21:04:34 2017 - [info]     GTID ON
+Tue Sep  5 21:04:34 2017 - [info]     Replicating from 192.168.60.190(192.168.60.190:3306)
+Tue Sep  5 21:04:34 2017 - [info] Current Alive Master: 192.168.60.190(192.168.60.190:3306)
+Tue Sep  5 21:04:34 2017 - [info] Checking slave configurations..
+Tue Sep  5 21:04:34 2017 - [info] Checking replication filtering settings..
+Tue Sep  5 21:04:34 2017 - [info]  binlog_do_db= , binlog_ignore_db= 
+Tue Sep  5 21:04:34 2017 - [info]  Replication filtering check ok.
+Tue Sep  5 21:04:34 2017 - [info] GTID (with auto-pos) is supported. Skipping all SSH and Node package checking.
+Tue Sep  5 21:04:34 2017 - [info] Checking SSH publickey authentication settings on the current master..
+Tue Sep  5 21:04:34 2017 - [info] HealthCheck: SSH to 192.168.60.190 is reachable.
+Tue Sep  5 21:04:34 2017 - [info] 
+192.168.60.190(192.168.60.190:3306) (current master)
+ +--192.168.60.191(192.168.60.191:3306)
+ +--192.168.60.192(192.168.60.192:3306)
+
+Tue Sep  5 21:04:34 2017 - [info] Checking replication health on 192.168.60.191..
+Tue Sep  5 21:04:34 2017 - [info]  ok.
+Tue Sep  5 21:04:34 2017 - [info] Checking replication health on 192.168.60.192..
+Tue Sep  5 21:04:34 2017 - [info]  ok.
+Tue Sep  5 21:04:34 2017 - [info] Checking master_ip_failover_script status:
+Tue Sep  5 21:04:34 2017 - [info]   /root/master_ip_failover --command=status --ssh_user=root --orig_master_host=192.168.60.190 --orig_master_ip=192.168.60.190 --orig_master_port=3306 
+
+
+IN SCRIPT TEST====/sbin/ifconfig enp0s3:1 down==/sbin/ifconfig enp0s3:1 192.168.60.220/24===
+
+Checking the Status of the script.. OK 
+Tue Sep  5 21:04:39 2017 - [info]  OK.
+Tue Sep  5 21:04:39 2017 - [warning] shutdown_script is not defined.
+Tue Sep  5 21:04:39 2017 - [info] Got exit code 0 (Not master dead).
+
+MySQL Replication Health is OK.
+
+
+
+
+masterha_manager    --conf=/etc/app1.cnf   
+
+
+
+
