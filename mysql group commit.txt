@@ -1,0 +1,690 @@
+https://blog.booking.com/better_parallel_replication_for_mysql.html
+https://dev.mysql.com/worklog/task/?id=5223
+https://blog.booking.com/
+
+
+This optimization reduces the number of operations needed to produce the binary logs by grouping transactions. 
+When transactions are committing at the same time, they are written to the binary log in a single operation. 
+But if transactions commit at the same time, then they are not sharing any locks, which means they are not conflicting thus can be executed in parallel on slaves. 
+So by adding group commit information in the binary logs on the master, the slaves can safely run transactions in parallel.
+
+mysql从并行复制
+
+  <tr>
+    <td>last_committed</td>
+    <td>8 byte integer</td>
+    <td>Store the transaction's commit parent sequence_number</td>
+  </tr>
+  <tr>
+    <td>sequence_number</td>
+    <td>8 byte integer</td>
+    <td>The transaction's logical timestamp assigned at prepare phase</td>
+  </tr>
+  </table>
+
+last_committed 一样就明可以放到一个组内
+测试脚本及产生bilog,关键的是 last_committed=0	sequence_number=1
+#!/bin/bash
+for i in {9000000..9000010}
+  do
+    (  mysql -uroot -p123456 -e "use test;insert into a values ($i);" ) &
+done
+wait
+
+
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# at 4
+#170908 21:32:25 server id 190  end_log_pos 123 CRC32 0xfcac5d3c 	Start: binlog v 4, server v 5.7.17-log created 170908 21:32:25
+# Warning: this binlog is either in use or was not closed properly.
+BINLOG '
+qUSzWQ++AAAAdwAAAHsAAAABAAQANS43LjE3LWxvZwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAEzgNAAgAEgAEBAQEEgAAXwAEGggAAAAICAgCAAAACgoKKioAEjQA
+ATxdrPw=
+'/*!*/;
+# at 123
+#170908 21:32:25 server id 190  end_log_pos 194 CRC32 0x2f8a58f4 	Previous-GTIDs
+# 204774d1-9214-11e7-bce7-080027a00095:1-108837
+# at 194
+#170908 21:33:05 server id 190  end_log_pos 259 CRC32 0x2a11adae 	GTID	last_committed=0	sequence_number=1
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108838'/*!*/;
+# at 259
+#170908 21:33:05 server id 190  end_log_pos 331 CRC32 0x296d265e 	Query	thread_id=110547	exec_time=0	error_code=0
+SET TIMESTAMP=1504920785/*!*/;
+SET @@session.pseudo_thread_id=110547/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
+SET @@session.sql_mode=1075838976/*!*/;
+SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
+/*!\C utf8mb4 *//*!*/;
+SET @@session.character_set_client=45,@@session.collation_connection=45,@@session.collation_server=224/*!*/;
+SET @@session.lc_time_names=0/*!*/;
+SET @@session.collation_database=DEFAULT/*!*/;
+BEGIN
+/*!*/;
+# at 331
+#170908 21:33:05 server id 190  end_log_pos 385 CRC32 0x705021b0 	Rows_query
+# insert into a values (9000007)
+# at 385
+#170908 21:33:05 server id 190  end_log_pos 429 CRC32 0x0fc58e7d 	Table_map: `test`.`a` mapped to number 230
+# at 429
+#170908 21:33:05 server id 190  end_log_pos 469 CRC32 0xde680055 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+0USzWR2+AAAANgAAAIEBAACAAB5pbnNlcnQgaW50byBhIHZhbHVlcyAoOTAwMDAwNymwIVBw
+0USzWRO+AAAALAAAAK0BAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAH2OxQ8=
+0USzWR6+AAAAKAAAANUBAAAAAOYAAAAAAAEAAgAB//5HVIkAVQBo3g==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=9000007 /* INT meta=0 nullable=0 is_null=0 */
+# at 469
+#170908 21:33:05 server id 190  end_log_pos 500 CRC32 0xd8551cad 	Xid = 581534
+COMMIT/*!*/;
+# at 500
+#170908 21:33:05 server id 190  end_log_pos 565 CRC32 0x813f0ee2 	GTID	last_committed=0	sequence_number=2
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108839'/*!*/;
+# at 565
+#170908 21:33:05 server id 190  end_log_pos 637 CRC32 0xbe2a15b2 	Query	thread_id=110546	exec_time=0	error_code=0
+SET TIMESTAMP=1504920785/*!*/;
+BEGIN
+/*!*/;
+# at 637
+#170908 21:33:05 server id 190  end_log_pos 691 CRC32 0x0c0952f2 	Rows_query
+# insert into a values (9000003)
+# at 691
+#170908 21:33:05 server id 190  end_log_pos 735 CRC32 0x60b403ed 	Table_map: `test`.`a` mapped to number 230
+# at 735
+#170908 21:33:05 server id 190  end_log_pos 775 CRC32 0x9de02077 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+0USzWR2+AAAANgAAALMCAACAAB5pbnNlcnQgaW50byBhIHZhbHVlcyAoOTAwMDAwMynyUgkM
+0USzWRO+AAAALAAAAN8CAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAO0DtGA=
+0USzWR6+AAAAKAAAAAcDAAAAAOYAAAAAAAEAAgAB//5DVIkAdyDgnQ==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=9000003 /* INT meta=0 nullable=0 is_null=0 */
+# at 775
+#170908 21:33:05 server id 190  end_log_pos 806 CRC32 0x2f7d0f06 	Xid = 581538
+COMMIT/*!*/;
+# at 806
+#170908 21:33:05 server id 190  end_log_pos 871 CRC32 0xbcaa71b5 	GTID	last_committed=0	sequence_number=3
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108840'/*!*/;
+# at 871
+#170908 21:33:05 server id 190  end_log_pos 943 CRC32 0x9ee28416 	Query	thread_id=110544	exec_time=0	error_code=0
+SET TIMESTAMP=1504920785/*!*/;
+BEGIN
+/*!*/;
+# at 943
+#170908 21:33:05 server id 190  end_log_pos 997 CRC32 0x2e31b22d 	Rows_query
+# insert into a values (9000001)
+# at 997
+#170908 21:33:05 server id 190  end_log_pos 1041 CRC32 0x1d24ae6f 	Table_map: `test`.`a` mapped to number 230
+# at 1041
+#170908 21:33:05 server id 190  end_log_pos 1081 CRC32 0xbcd46d34 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+0USzWR2+AAAANgAAAOUDAACAAB5pbnNlcnQgaW50byBhIHZhbHVlcyAoOTAwMDAwMSktsjEu
+0USzWRO+AAAALAAAABEEAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAG+uJB0=
+0USzWR6+AAAAKAAAADkEAAAAAOYAAAAAAAEAAgAB//5BVIkANG3UvA==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=9000001 /* INT meta=0 nullable=0 is_null=0 */
+# at 1081
+#170908 21:33:05 server id 190  end_log_pos 1112 CRC32 0xa01ff42e 	Xid = 581546
+COMMIT/*!*/;
+# at 1112
+#170908 21:33:05 server id 190  end_log_pos 1177 CRC32 0x6e2392ac 	GTID	last_committed=0	sequence_number=4
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108841'/*!*/;
+# at 1177
+#170908 21:33:05 server id 190  end_log_pos 1249 CRC32 0xff762aeb 	Query	thread_id=110545	exec_time=0	error_code=0
+SET TIMESTAMP=1504920785/*!*/;
+BEGIN
+/*!*/;
+# at 1249
+#170908 21:33:05 server id 190  end_log_pos 1303 CRC32 0x44894675 	Rows_query
+# insert into a values (9000002)
+# at 1303
+#170908 21:33:05 server id 190  end_log_pos 1347 CRC32 0xdbf63e3a 	Table_map: `test`.`a` mapped to number 230
+# at 1347
+#170908 21:33:05 server id 190  end_log_pos 1387 CRC32 0x5067ea8f 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+0USzWR2+AAAANgAAABcFAACAAB5pbnNlcnQgaW50byBhIHZhbHVlcyAoOTAwMDAwMil1RolE
+0USzWRO+AAAALAAAAEMFAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAADo+9ts=
+0USzWR6+AAAAKAAAAGsFAAAAAOYAAAAAAAEAAgAB//5CVIkAj+pnUA==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=9000002 /* INT meta=0 nullable=0 is_null=0 */
+# at 1387
+#170908 21:33:05 server id 190  end_log_pos 1418 CRC32 0xbcd5c383 	Xid = 581550
+COMMIT/*!*/;
+# at 1418
+#170908 21:33:05 server id 190  end_log_pos 1483 CRC32 0x840034b7 	GTID	last_committed=0	sequence_number=5
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108842'/*!*/;
+# at 1483
+#170908 21:33:05 server id 190  end_log_pos 1555 CRC32 0xa0f31eec 	Query	thread_id=110542	exec_time=0	error_code=0
+SET TIMESTAMP=1504920785/*!*/;
+BEGIN
+/*!*/;
+# at 1555
+#170908 21:33:05 server id 190  end_log_pos 1609 CRC32 0x36f050fa 	Rows_query
+# insert into a values (9000005)
+# at 1609
+#170908 21:33:05 server id 190  end_log_pos 1653 CRC32 0x776573fa 	Table_map: `test`.`a` mapped to number 230
+# at 1653
+#170908 21:33:05 server id 190  end_log_pos 1693 CRC32 0x14cbac88 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+0USzWR2+AAAANgAAAEkGAACAAB5pbnNlcnQgaW50byBhIHZhbHVlcyAoOTAwMDAwNSn6UPA2
+0USzWRO+AAAALAAAAHUGAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAPpzZXc=
+0USzWR6+AAAAKAAAAJ0GAAAAAOYAAAAAAAEAAgAB//5FVIkAiKzLFA==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=9000005 /* INT meta=0 nullable=0 is_null=0 */
+# at 1693
+#170908 21:33:05 server id 190  end_log_pos 1724 CRC32 0x791f842b 	Xid = 581554
+COMMIT/*!*/;
+# at 1724
+#170908 21:33:05 server id 190  end_log_pos 1789 CRC32 0x2f2e97fb 	GTID	last_committed=0	sequence_number=6
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108843'/*!*/;
+# at 1789
+#170908 21:33:05 server id 190  end_log_pos 1861 CRC32 0x427ee0a7 	Query	thread_id=110543	exec_time=0	error_code=0
+SET TIMESTAMP=1504920785/*!*/;
+BEGIN
+/*!*/;
+# at 1861
+#170908 21:33:05 server id 190  end_log_pos 1915 CRC32 0xf4781a14 	Rows_query
+# insert into a values (9000006)
+# at 1915
+#170908 21:33:05 server id 190  end_log_pos 1959 CRC32 0x2f81b3c4 	Table_map: `test`.`a` mapped to number 230
+# at 1959
+#170908 21:33:05 server id 190  end_log_pos 1999 CRC32 0xf8782b33 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+0USzWR2+AAAANgAAAHsHAACAAB5pbnNlcnQgaW50byBhIHZhbHVlcyAoOTAwMDAwNikUGnj0
+0USzWRO+AAAALAAAAKcHAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAMSzgS8=
+0USzWR6+AAAAKAAAAM8HAAAAAOYAAAAAAAEAAgAB//5GVIkAMyt4+A==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=9000006 /* INT meta=0 nullable=0 is_null=0 */
+# at 1999
+#170908 21:33:05 server id 190  end_log_pos 2030 CRC32 0x9a1d6d4f 	Xid = 581542
+COMMIT/*!*/;
+# at 2030
+#170908 21:33:05 server id 190  end_log_pos 2095 CRC32 0xdf801c59 	GTID	last_committed=0	sequence_number=7
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108844'/*!*/;
+# at 2095
+#170908 21:33:05 server id 190  end_log_pos 2167 CRC32 0xaa151d67 	Query	thread_id=110548	exec_time=0	error_code=0
+SET TIMESTAMP=1504920785/*!*/;
+BEGIN
+/*!*/;
+# at 2167
+#170908 21:33:05 server id 190  end_log_pos 2221 CRC32 0xac4c9077 	Rows_query
+# insert into a values (9000000)
+# at 2221
+#170908 21:33:05 server id 190  end_log_pos 2265 CRC32 0x9c8e38f9 	Table_map: `test`.`a` mapped to number 230
+# at 2265
+#170908 21:33:05 server id 190  end_log_pos 2305 CRC32 0xf58c1263 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+0USzWR2+AAAANgAAAK0IAACAAB5pbnNlcnQgaW50byBhIHZhbHVlcyAoOTAwMDAwMCl3kEys
+0USzWRO+AAAALAAAANkIAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAPk4jpw=
+0USzWR6+AAAAKAAAAAEJAAAAAOYAAAAAAAEAAgAB//5AVIkAYxKM9Q==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=9000000 /* INT meta=0 nullable=0 is_null=0 */
+# at 2305
+#170908 21:33:05 server id 190  end_log_pos 2336 CRC32 0x15111d47 	Xid = 581558
+COMMIT/*!*/;
+# at 2336
+#170908 21:33:05 server id 190  end_log_pos 2401 CRC32 0x1d8a9cbe 	GTID	last_committed=0	sequence_number=8
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108845'/*!*/;
+# at 2401
+#170908 21:33:05 server id 190  end_log_pos 2473 CRC32 0x8326a936 	Query	thread_id=110549	exec_time=0	error_code=0
+SET TIMESTAMP=1504920785/*!*/;
+BEGIN
+/*!*/;
+# at 2473
+#170908 21:33:05 server id 190  end_log_pos 2527 CRC32 0xdeb077e7 	Rows_query
+# insert into a values (9000008)
+# at 2527
+#170908 21:33:05 server id 190  end_log_pos 2571 CRC32 0x363d153f 	Table_map: `test`.`a` mapped to number 230
+# at 2571
+#170908 21:33:05 server id 190  end_log_pos 2611 CRC32 0xe741cef1 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+0USzWR2+AAAANgAAAN8JAACAAB5pbnNlcnQgaW50byBhIHZhbHVlcyAoOTAwMDAwOCnnd7De
+0USzWRO+AAAALAAAAAsKAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAD8VPTY=
+0USzWR6+AAAAKAAAADMKAAAAAOYAAAAAAAEAAgAB//5IVIkA8c5B5w==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=9000008 /* INT meta=0 nullable=0 is_null=0 */
+# at 2611
+#170908 21:33:05 server id 190  end_log_pos 2642 CRC32 0xf475132e 	Xid = 581562
+COMMIT/*!*/;
+# at 2642
+#170908 21:33:05 server id 190  end_log_pos 2707 CRC32 0x27a6a879 	GTID	last_committed=0	sequence_number=9
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108846'/*!*/;
+# at 2707
+#170908 21:33:05 server id 190  end_log_pos 2779 CRC32 0x3b27c8a3 	Query	thread_id=110551	exec_time=0	error_code=0
+SET TIMESTAMP=1504920785/*!*/;
+BEGIN
+/*!*/;
+# at 2779
+#170908 21:33:05 server id 190  end_log_pos 2833 CRC32 0x1f71d9e1 	Rows_query
+# insert into a values (9000004)
+# at 2833
+#170908 21:33:05 server id 190  end_log_pos 2877 CRC32 0x8fe41390 	Table_map: `test`.`a` mapped to number 230
+# at 2877
+#170908 21:33:05 server id 190  end_log_pos 2917 CRC32 0x53cdf88f 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+0USzWR2+AAAANgAAABELAACAAB5pbnNlcnQgaW50byBhIHZhbHVlcyAoOTAwMDAwNCnh2XEf
+0USzWRO+AAAALAAAAD0LAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAJAT5I8=
+0USzWR6+AAAAKAAAAGULAAAAAOYAAAAAAAEAAgAB//5EVIkAj/jNUw==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=9000004 /* INT meta=0 nullable=0 is_null=0 */
+# at 2917
+#170908 21:33:05 server id 190  end_log_pos 2948 CRC32 0xf113ab98 	Xid = 581566
+COMMIT/*!*/;
+# at 2948
+#170908 21:33:05 server id 190  end_log_pos 3013 CRC32 0xe9019c32 	GTID	last_committed=0	sequence_number=10
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108847'/*!*/;
+# at 3013
+#170908 21:33:05 server id 190  end_log_pos 3085 CRC32 0xe9d53dc7 	Query	thread_id=110552	exec_time=0	error_code=0
+SET TIMESTAMP=1504920785/*!*/;
+BEGIN
+/*!*/;
+# at 3085
+#170908 21:33:05 server id 190  end_log_pos 3139 CRC32 0x1d4284b2 	Rows_query
+# insert into a values (9000009)
+# at 3139
+#170908 21:33:05 server id 190  end_log_pos 3183 CRC32 0x76e85e74 	Table_map: `test`.`a` mapped to number 230
+# at 3183
+#170908 21:33:05 server id 190  end_log_pos 3223 CRC32 0x24216c7f 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+0USzWR2+AAAANgAAAEMMAACAAB5pbnNlcnQgaW50byBhIHZhbHVlcyAoOTAwMDAwOSmyhEId
+0USzWRO+AAAALAAAAG8MAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAHRe6HY=
+0USzWR6+AAAAKAAAAJcMAAAAAOYAAAAAAAEAAgAB//5JVIkAf2whJA==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=9000009 /* INT meta=0 nullable=0 is_null=0 */
+# at 3223
+#170908 21:33:05 server id 190  end_log_pos 3254 CRC32 0x3d27a906 	Xid = 581570
+COMMIT/*!*/;
+# at 3254
+#170908 21:33:05 server id 190  end_log_pos 3319 CRC32 0x979f78d9 	GTID	last_committed=0	sequence_number=11
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108848'/*!*/;
+# at 3319
+#170908 21:33:05 server id 190  end_log_pos 3391 CRC32 0x4e5a3de2 	Query	thread_id=110550	exec_time=0	error_code=0
+SET TIMESTAMP=1504920785/*!*/;
+BEGIN
+/*!*/;
+# at 3391
+#170908 21:33:05 server id 190  end_log_pos 3445 CRC32 0x4ab41a5e 	Rows_query
+# insert into a values (9000010)
+# at 3445
+#170908 21:33:05 server id 190  end_log_pos 3489 CRC32 0xd3bb88d0 	Table_map: `test`.`a` mapped to number 230
+# at 3489
+#170908 21:33:05 server id 190  end_log_pos 3529 CRC32 0xc8770971 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+0USzWR2+AAAANgAAAHUNAACAAB5pbnNlcnQgaW50byBhIHZhbHVlcyAoOTAwMDAxMCleGrRK
+0USzWRO+AAAALAAAAKENAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAANCIu9M=
+0USzWR6+AAAAKAAAAMkNAAAAAOYAAAAAAAEAAgAB//5KVIkAcQl3yA==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=9000010 /* INT meta=0 nullable=0 is_null=0 */
+# at 3529
+#170908 21:33:05 server id 190  end_log_pos 3560 CRC32 0x886be064 	Xid = 581574
+COMMIT/*!*/;
+SET @@SESSION.GTID_NEXT= 'AUTOMATIC' /* added by mysqlbinlog */ /*!*/;
+DELIMITER ;
+# End of log file
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+
+
+
+##### 顺序插入
+##### 脚本 for i in {10000000..10000010};do mysql -uroot -p123456 -e "use test;insert into a values ($i);";done;
+测试脚本及产生binlog日志
+
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# at 4
+#170908 23:04:22 server id 190  end_log_pos 123 CRC32 0x5ac3c924 	Start: binlog v 4, server v 5.7.17-log created 170908 23:04:22
+# Warning: this binlog is either in use or was not closed properly.
+BINLOG '
+NlqzWQ++AAAAdwAAAHsAAAABAAQANS43LjE3LWxvZwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAEzgNAAgAEgAEBAQEEgAAXwAEGggAAAAICAgCAAAACgoKKioAEjQA
+ASTJw1o=
+'/*!*/;
+# at 123
+#170908 23:04:22 server id 190  end_log_pos 194 CRC32 0x84f395a6 	Previous-GTIDs
+# 204774d1-9214-11e7-bce7-080027a00095:1-108848
+# at 194
+#170908 23:04:39 server id 190  end_log_pos 259 CRC32 0x7a39c6df 	GTID	last_committed=0	sequence_number=1
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108849'/*!*/;
+# at 259
+#170908 23:04:39 server id 190  end_log_pos 331 CRC32 0x25bcb9a6 	Query	thread_id=110556	exec_time=0	error_code=0
+SET TIMESTAMP=1504926279/*!*/;
+SET @@session.pseudo_thread_id=110556/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
+SET @@session.sql_mode=1075838976/*!*/;
+SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
+/*!\C utf8mb4 *//*!*/;
+SET @@session.character_set_client=45,@@session.collation_connection=45,@@session.collation_server=224/*!*/;
+SET @@session.lc_time_names=0/*!*/;
+SET @@session.collation_database=DEFAULT/*!*/;
+BEGIN
+/*!*/;
+# at 331
+#170908 23:04:39 server id 190  end_log_pos 386 CRC32 0x72ba1597 	Rows_query
+# insert into a values (10000000)
+# at 386
+#170908 23:04:39 server id 190  end_log_pos 430 CRC32 0x8119008e 	Table_map: `test`.`a` mapped to number 230
+# at 430
+#170908 23:04:39 server id 190  end_log_pos 470 CRC32 0x84c38f90 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+R1qzWR2+AAAANwAAAIIBAACAAB9pbnNlcnQgaW50byBhIHZhbHVlcyAoMTAwMDAwMDAplxW6cg==
+R1qzWRO+AAAALAAAAK4BAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAI4AGYE=
+R1qzWR6+AAAAKAAAANYBAAAAAOYAAAAAAAEAAgAB//6AlpgAkI/DhA==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=10000000 /* INT meta=0 nullable=0 is_null=0 */
+# at 470
+#170908 23:04:39 server id 190  end_log_pos 501 CRC32 0x5ef63559 	Xid = 581597
+COMMIT/*!*/;
+# at 501
+#170908 23:04:39 server id 190  end_log_pos 566 CRC32 0xa9cbe73b 	GTID	last_committed=1	sequence_number=2
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108850'/*!*/;
+# at 566
+#170908 23:04:39 server id 190  end_log_pos 638 CRC32 0xd4ff5f7a 	Query	thread_id=110557	exec_time=0	error_code=0
+SET TIMESTAMP=1504926279/*!*/;
+BEGIN
+/*!*/;
+# at 638
+#170908 23:04:39 server id 190  end_log_pos 693 CRC32 0x223ef56c 	Rows_query
+# insert into a values (10000001)
+# at 693
+#170908 23:04:39 server id 190  end_log_pos 737 CRC32 0xc1bad66f 	Table_map: `test`.`a` mapped to number 230
+# at 737
+#170908 23:04:39 server id 190  end_log_pos 777 CRC32 0x6b0357e1 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+R1qzWR2+AAAANwAAALUCAACAAB9pbnNlcnQgaW50byBhIHZhbHVlcyAoMTAwMDAwMDEpbPU+Ig==
+R1qzWRO+AAAALAAAAOECAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAG/WusE=
+R1qzWR6+AAAAKAAAAAkDAAAAAOYAAAAAAAEAAgAB//6BlpgA4VcDaw==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=10000001 /* INT meta=0 nullable=0 is_null=0 */
+# at 777
+#170908 23:04:39 server id 190  end_log_pos 808 CRC32 0x71c595e7 	Xid = 581602
+COMMIT/*!*/;
+# at 808
+#170908 23:04:39 server id 190  end_log_pos 873 CRC32 0x07ceec82 	GTID	last_committed=2	sequence_number=3
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108851'/*!*/;
+# at 873
+#170908 23:04:39 server id 190  end_log_pos 945 CRC32 0x57a63b9f 	Query	thread_id=110558	exec_time=0	error_code=0
+SET TIMESTAMP=1504926279/*!*/;
+BEGIN
+/*!*/;
+# at 945
+#170908 23:04:39 server id 190  end_log_pos 1000 CRC32 0xe6507f95 	Rows_query
+# insert into a values (10000002)
+# at 1000
+#170908 23:04:39 server id 190  end_log_pos 1044 CRC32 0x2fa17d5b 	Table_map: `test`.`a` mapped to number 230
+# at 1044
+#170908 23:04:39 server id 190  end_log_pos 1084 CRC32 0x84d707dc 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+R1qzWR2+AAAANwAAAOgDAACAAB9pbnNlcnQgaW50byBhIHZhbHVlcyAoMTAwMDAwMDIplX9Q5g==
+R1qzWRO+AAAALAAAABQEAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAFt9oS8=
+R1qzWR6+AAAAKAAAADwEAAAAAOYAAAAAAAEAAgAB//6ClpgA3AfXhA==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=10000002 /* INT meta=0 nullable=0 is_null=0 */
+# at 1084
+#170908 23:04:39 server id 190  end_log_pos 1115 CRC32 0xd2580b45 	Xid = 581607
+COMMIT/*!*/;
+# at 1115
+#170908 23:04:39 server id 190  end_log_pos 1180 CRC32 0x60d8a769 	GTID	last_committed=3	sequence_number=4
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108852'/*!*/;
+# at 1180
+#170908 23:04:39 server id 190  end_log_pos 1252 CRC32 0xd6f2e550 	Query	thread_id=110559	exec_time=0	error_code=0
+SET TIMESTAMP=1504926279/*!*/;
+BEGIN
+/*!*/;
+# at 1252
+#170908 23:04:39 server id 190  end_log_pos 1307 CRC32 0x155f6c5d 	Rows_query
+# insert into a values (10000003)
+# at 1307
+#170908 23:04:39 server id 190  end_log_pos 1351 CRC32 0x87fff64f 	Table_map: `test`.`a` mapped to number 230
+# at 1351
+#170908 23:04:39 server id 190  end_log_pos 1391 CRC32 0x591ea238 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+R1qzWR2+AAAANwAAABsFAACAAB9pbnNlcnQgaW50byBhIHZhbHVlcyAoMTAwMDAwMDMpXWxfFQ==
+R1qzWRO+AAAALAAAAEcFAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAE/2/4c=
+R1qzWR6+AAAAKAAAAG8FAAAAAOYAAAAAAAEAAgAB//6DlpgAOKIeWQ==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=10000003 /* INT meta=0 nullable=0 is_null=0 */
+# at 1391
+#170908 23:04:39 server id 190  end_log_pos 1422 CRC32 0x727f8484 	Xid = 581612
+COMMIT/*!*/;
+# at 1422
+#170908 23:04:39 server id 190  end_log_pos 1487 CRC32 0xdad53386 	GTID	last_committed=4	sequence_number=5
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108853'/*!*/;
+# at 1487
+#170908 23:04:39 server id 190  end_log_pos 1559 CRC32 0x417adcfc 	Query	thread_id=110560	exec_time=0	error_code=0
+SET TIMESTAMP=1504926279/*!*/;
+BEGIN
+/*!*/;
+# at 1559
+#170908 23:04:39 server id 190  end_log_pos 1614 CRC32 0xd8adf149 	Rows_query
+# insert into a values (10000004)
+# at 1614
+#170908 23:04:39 server id 190  end_log_pos 1658 CRC32 0x5a7a40c6 	Table_map: `test`.`a` mapped to number 230
+# at 1658
+#170908 23:04:39 server id 190  end_log_pos 1698 CRC32 0x687914f0 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+R1qzWR2+AAAANwAAAE4GAACAAB9pbnNlcnQgaW50byBhIHZhbHVlcyAoMTAwMDAwMDQpSfGt2A==
+R1qzWRO+AAAALAAAAHoGAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAMZAelo=
+R1qzWR6+AAAAKAAAAKIGAAAAAOYAAAAAAAEAAgAB//6ElpgA8BR5aA==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=10000004 /* INT meta=0 nullable=0 is_null=0 */
+# at 1698
+#170908 23:04:39 server id 190  end_log_pos 1729 CRC32 0x3f268fb7 	Xid = 581617
+COMMIT/*!*/;
+# at 1729
+#170908 23:04:39 server id 190  end_log_pos 1794 CRC32 0x55233fbb 	GTID	last_committed=5	sequence_number=6
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108854'/*!*/;
+# at 1794
+#170908 23:04:39 server id 190  end_log_pos 1866 CRC32 0x0e9f6946 	Query	thread_id=110561	exec_time=0	error_code=0
+SET TIMESTAMP=1504926279/*!*/;
+BEGIN
+/*!*/;
+# at 1866
+#170908 23:04:39 server id 190  end_log_pos 1921 CRC32 0xf6e79f75 	Rows_query
+# insert into a values (10000005)
+# at 1921
+#170908 23:04:39 server id 190  end_log_pos 1965 CRC32 0x0d53f0fc 	Table_map: `test`.`a` mapped to number 230
+# at 1965
+#170908 23:04:39 server id 190  end_log_pos 2005 CRC32 0xb7091c1f 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+R1qzWR2+AAAANwAAAIEHAACAAB9pbnNlcnQgaW50byBhIHZhbHVlcyAoMTAwMDAwMDUpdZ/n9g==
+R1qzWRO+AAAALAAAAK0HAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAPzwUw0=
+R1qzWR6+AAAAKAAAANUHAAAAAOYAAAAAAAEAAgAB//6FlpgAHxwJtw==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=10000005 /* INT meta=0 nullable=0 is_null=0 */
+# at 2005
+#170908 23:04:39 server id 190  end_log_pos 2036 CRC32 0xc70075f2 	Xid = 581622
+COMMIT/*!*/;
+# at 2036
+#170908 23:04:39 server id 190  end_log_pos 2101 CRC32 0x2beebfdb 	GTID	last_committed=6	sequence_number=7
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108855'/*!*/;
+# at 2101
+#170908 23:04:39 server id 190  end_log_pos 2173 CRC32 0x75a15ab5 	Query	thread_id=110562	exec_time=0	error_code=0
+SET TIMESTAMP=1504926279/*!*/;
+BEGIN
+/*!*/;
+# at 2173
+#170908 23:04:39 server id 190  end_log_pos 2228 CRC32 0xe6c01b48 	Rows_query
+# insert into a values (10000006)
+# at 2228
+#170908 23:04:39 server id 190  end_log_pos 2272 CRC32 0xef55abfd 	Table_map: `test`.`a` mapped to number 230
+# at 2272
+#170908 23:04:39 server id 190  end_log_pos 2312 CRC32 0xfab46a0c 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+R1qzWR2+AAAANwAAALQIAACAAB9pbnNlcnQgaW50byBhIHZhbHVlcyAoMTAwMDAwMDYpSBvA5g==
+R1qzWRO+AAAALAAAAOAIAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAP2rVe8=
+R1qzWR6+AAAAKAAAAAgJAAAAAOYAAAAAAAEAAgAB//6GlpgADGq0+g==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=10000006 /* INT meta=0 nullable=0 is_null=0 */
+# at 2312
+#170908 23:04:39 server id 190  end_log_pos 2343 CRC32 0x7efa6d37 	Xid = 581627
+COMMIT/*!*/;
+# at 2343
+#170908 23:04:39 server id 190  end_log_pos 2408 CRC32 0x2b72a59a 	GTID	last_committed=7	sequence_number=8
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108856'/*!*/;
+# at 2408
+#170908 23:04:39 server id 190  end_log_pos 2480 CRC32 0x773e0017 	Query	thread_id=110563	exec_time=0	error_code=0
+SET TIMESTAMP=1504926279/*!*/;
+BEGIN
+/*!*/;
+# at 2480
+#170908 23:04:39 server id 190  end_log_pos 2535 CRC32 0x3c29096b 	Rows_query
+# insert into a values (10000007)
+# at 2535
+#170908 23:04:39 server id 190  end_log_pos 2579 CRC32 0x9783cbd0 	Table_map: `test`.`a` mapped to number 230
+# at 2579
+#170908 23:04:39 server id 190  end_log_pos 2619 CRC32 0x0e0213c0 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+R1qzWR2+AAAANwAAAOcJAACAAB9pbnNlcnQgaW50byBhIHZhbHVlcyAoMTAwMDAwMDcpawkpPA==
+R1qzWRO+AAAALAAAABMKAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAANDLg5c=
+R1qzWR6+AAAAKAAAADsKAAAAAOYAAAAAAAEAAgAB//6HlpgAwBMCDg==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=10000007 /* INT meta=0 nullable=0 is_null=0 */
+# at 2619
+#170908 23:04:39 server id 190  end_log_pos 2650 CRC32 0x628f1f40 	Xid = 581632
+COMMIT/*!*/;
+# at 2650
+#170908 23:04:39 server id 190  end_log_pos 2715 CRC32 0x32633ce6 	GTID	last_committed=8	sequence_number=9
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108857'/*!*/;
+# at 2715
+#170908 23:04:39 server id 190  end_log_pos 2787 CRC32 0xa9c73c88 	Query	thread_id=110564	exec_time=0	error_code=0
+SET TIMESTAMP=1504926279/*!*/;
+BEGIN
+/*!*/;
+# at 2787
+#170908 23:04:39 server id 190  end_log_pos 2842 CRC32 0x13479bca 	Rows_query
+# insert into a values (10000008)
+# at 2842
+#170908 23:04:39 server id 190  end_log_pos 2886 CRC32 0x83841d03 	Table_map: `test`.`a` mapped to number 230
+# at 2886
+#170908 23:04:39 server id 190  end_log_pos 2926 CRC32 0xdedeb36d 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+R1qzWR2+AAAANwAAABoLAACAAB9pbnNlcnQgaW50byBhIHZhbHVlcyAoMTAwMDAwMDgpyptHEw==
+R1qzWRO+AAAALAAAAEYLAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAAMdhIM=
+R1qzWR6+AAAAKAAAAG4LAAAAAOYAAAAAAAEAAgAB//6IlpgAbbPe3g==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=10000008 /* INT meta=0 nullable=0 is_null=0 */
+# at 2926
+#170908 23:04:39 server id 190  end_log_pos 2957 CRC32 0x364c461e 	Xid = 581637
+COMMIT/*!*/;
+# at 2957
+#170908 23:04:39 server id 190  end_log_pos 3022 CRC32 0x84188a05 	GTID	last_committed=9	sequence_number=10
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108858'/*!*/;
+# at 3022
+#170908 23:04:39 server id 190  end_log_pos 3094 CRC32 0xb2b4e8ac 	Query	thread_id=110565	exec_time=0	error_code=0
+SET TIMESTAMP=1504926279/*!*/;
+BEGIN
+/*!*/;
+# at 3094
+#170908 23:04:39 server id 190  end_log_pos 3149 CRC32 0x26dc0a62 	Rows_query
+# insert into a values (10000009)
+# at 3149
+#170908 23:04:39 server id 190  end_log_pos 3193 CRC32 0xa98d0bd6 	Table_map: `test`.`a` mapped to number 230
+# at 3193
+#170908 23:04:39 server id 190  end_log_pos 3233 CRC32 0x7be51a90 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+R1qzWR2+AAAANwAAAE0MAACAAB9pbnNlcnQgaW50byBhIHZhbHVlcyAoMTAwMDAwMDkpYgrcJg==
+R1qzWRO+AAAALAAAAHkMAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAANYLjak=
+R1qzWR6+AAAAKAAAAKEMAAAAAOYAAAAAAAEAAgAB//6JlpgAkBrlew==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=10000009 /* INT meta=0 nullable=0 is_null=0 */
+# at 3233
+#170908 23:04:39 server id 190  end_log_pos 3264 CRC32 0x645cd540 	Xid = 581642
+COMMIT/*!*/;
+# at 3264
+#170908 23:04:39 server id 190  end_log_pos 3329 CRC32 0x5bfb7016 	GTID	last_committed=10	sequence_number=11
+SET @@SESSION.GTID_NEXT= '204774d1-9214-11e7-bce7-080027a00095:108859'/*!*/;
+# at 3329
+#170908 23:04:39 server id 190  end_log_pos 3401 CRC32 0x7c976351 	Query	thread_id=110566	exec_time=0	error_code=0
+SET TIMESTAMP=1504926279/*!*/;
+BEGIN
+/*!*/;
+# at 3401
+#170908 23:04:39 server id 190  end_log_pos 3456 CRC32 0x01ed79e4 	Rows_query
+# insert into a values (10000010)
+# at 3456
+#170908 23:04:39 server id 190  end_log_pos 3500 CRC32 0x23bc8d6e 	Table_map: `test`.`a` mapped to number 230
+# at 3500
+#170908 23:04:39 server id 190  end_log_pos 3540 CRC32 0xe30a091d 	Write_rows: table id 230 flags: STMT_END_F
+
+BINLOG '
+R1qzWR2+AAAANwAAAIANAACAAB9pbnNlcnQgaW50byBhIHZhbHVlcyAoMTAwMDAwMTAp5HntAQ==
+R1qzWRO+AAAALAAAAKwNAAAAAOYAAAAAAAEABHRlc3QAAWEAAQMAAG6NvCM=
+R1qzWR6+AAAAKAAAANQNAAAAAOYAAAAAAAEAAgAB//6KlpgAHQkK4w==
+'/*!*/;
+### INSERT INTO `test`.`a`
+### SET
+###   @1=10000010 /* INT meta=0 nullable=0 is_null=0 */
+# at 3540
+#170908 23:04:39 server id 190  end_log_pos 3571 CRC32 0x269d63ce 	Xid = 581647
+COMMIT/*!*/;
+SET @@SESSION.GTID_NEXT= 'AUTOMATIC' /* added by mysqlbinlog */ /*!*/;
+DELIMITER ;
+# End of log file
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+
