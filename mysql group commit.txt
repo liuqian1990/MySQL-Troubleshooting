@@ -3,6 +3,14 @@ https://dev.mysql.com/worklog/task/?id=5223
 https://blog.booking.com/
 
 
+/**
+  Logical timestamp generator for logical timestamping binlog transactions.
+  A transaction is associated with two sequence numbers see
+  @c Transaction_ctx::last_committed and @c Transaction_ctx::sequence_number.
+  The class provides necessary interfaces including that of
+  generating a next consecutive value for the latter.
+*/
+
 This optimization reduces the number of operations needed to produce the binary logs by grouping transactions. 
 When transactions are committing at the same time, they are written to the binary log in a single operation. 
 But if transactions commit at the same time, then they are not sharing any locks, which means they are not conflicting thus can be executed in parallel on slaves. 
