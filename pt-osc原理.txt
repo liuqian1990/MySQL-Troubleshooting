@@ -1,0 +1,184 @@
+https://www.cnblogs.com/zhoujinyi/p/3491059.html
+http://seanlook.com/2016/05/27/mysql-pt-online-schema-change/
+
+[root@localhost ~]# pt-online-schema-change --user=root --password=123456 --host=localhost  --alter "ADD COLUMN f_id int default 0" D=test,t=b --print --dry-run
+*******************************************************************
+ Using the default of SSL_verify_mode of SSL_VERIFY_NONE for client
+ is deprecated! Please set SSL_verify_mode to SSL_VERIFY_PEER
+ together with SSL_ca_file|SSL_ca_path for verification.
+ If you really don't want to verify the certificate and keep the
+ connection open to Man-In-The-Middle attacks please set
+ SSL_verify_mode explicitly to SSL_VERIFY_NONE in your application.
+*******************************************************************
+  at /usr/bin/pt-online-schema-change line 6896.
+Operation, tries, wait:
+  analyze_table, 10, 1
+  copy_rows, 10, 0.25
+  create_triggers, 10, 1
+  drop_triggers, 10, 1
+  swap_tables, 10, 1
+  update_foreign_keys, 10, 1
+Starting a dry run.  `test`.`b` will not be altered.  Specify --execute instead of --dry-run to alter the table.
+Creating new table...
+CREATE TABLE `test`.`_b_new` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+Created new table test._b_new OK.
+Altering new table...
+ALTER TABLE `test`.`_b_new` ADD COLUMN f_id int default 0
+Altered `test`.`_b_new` OK.
+Not creating triggers because this is a dry run.
+Not copying rows because this is a dry run.
+INSERT LOW_PRIORITY IGNORE INTO `test`.`_b_new` (`a`) SELECT `a` FROM `test`.`b` LOCK IN SHARE MODE /*pt-online-schema-change 4731 copy table*/
+Not swapping tables because this is a dry run.
+Not dropping old table because this is a dry run.
+Not dropping triggers because this is a dry run.
+DROP TRIGGER IF EXISTS `test`.`pt_osc_test_b_del`
+DROP TRIGGER IF EXISTS `test`.`pt_osc_test_b_upd`
+DROP TRIGGER IF EXISTS `test`.`pt_osc_test_b_ins`
+2017-11-07T19:20:03 Dropping new table...
+DROP TABLE IF EXISTS `test`.`_b_new`;
+2017-11-07T19:20:03 Dropped new table OK.
+Dry run complete.  `test`.`b` was not altered.
+
+
+
+[root@localhost ~]# pt-online-schema-change --user=root --password=123456 --host=localhost  --alter "ADD COLUMN f_id int default 0" D=test,t=b --print --execute
+No slaves found.  See --recursion-method if host localhost.localdomain has slaves.
+Not checking slave lag because no slaves were found and --check-slave-lag was not specified.
+Operation, tries, wait:
+  analyze_table, 10, 1
+  copy_rows, 10, 0.25
+  create_triggers, 10, 1
+  drop_triggers, 10, 1
+  swap_tables, 10, 1
+  update_foreign_keys, 10, 1
+Altering `test`.`b`...
+Creating new table...
+CREATE TABLE `test`.`_b_new` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+Created new table test._b_new OK.
+Altering new table...
+ALTER TABLE `test`.`_b_new` ADD COLUMN f_id int default 0
+Altered `test`.`_b_new` OK.
+2017-11-07T19:38:49 Creating triggers...
+2017-11-07T19:38:49 Created triggers OK.
+2017-11-07T19:38:49 Copying approximately 92475 rows...
+INSERT LOW_PRIORITY IGNORE INTO `test`.`_b_new` (`a`) SELECT `a` FROM `test`.`b` FORCE INDEX(`PRIMARY`) WHERE ((`a` >= ?)) AND ((`a` <= ?)) LOCK IN SHARE MODE /*pt-online-schema-change 7609 copy nibble*/
+SELECT /*!40001 SQL_NO_CACHE */ `a` FROM `test`.`b` FORCE INDEX(`PRIMARY`) WHERE ((`a` >= ?)) ORDER BY `a` LIMIT ?, 2 /*next chunk boundary*/
+2017-11-07T19:38:50 Copied rows OK.
+2017-11-07T19:38:50 Analyzing new table...
+2017-11-07T19:38:50 Swapping tables...
+RENAME TABLE `test`.`b` TO `test`.`_b_old`, `test`.`_b_new` TO `test`.`b`
+2017-11-07T19:38:50 Swapped original and new tables OK.
+2017-11-07T19:38:50 Dropping old table...
+DROP TABLE IF EXISTS `test`.`_b_old`
+2017-11-07T19:38:50 Dropped old table `test`.`_b_old` OK.
+2017-11-07T19:38:50 Dropping triggers...
+DROP TRIGGER IF EXISTS `test`.`pt_osc_test_b_del`
+DROP TRIGGER IF EXISTS `test`.`pt_osc_test_b_upd`
+DROP TRIGGER IF EXISTS `test`.`pt_osc_test_b_ins`
+2017-11-07T19:38:50 Dropped triggers OK.
+Successfully altered `test`.`b`.
+
+
+2017-11-07T19:38:49.306134-05:00	99914 Connect	root@localhost on test using Socket
+2017-11-07T19:38:49.307006-05:00	99914 Query	SHOW VARIABLES LIKE 'innodb\_lock_wait_timeout'
+2017-11-07T19:38:49.311141-05:00	99914 Query	SET SESSION innodb_lock_wait_timeout=1
+2017-11-07T19:38:49.311616-05:00	99914 Query	SHOW VARIABLES LIKE 'lock\_wait_timeout'
+2017-11-07T19:38:49.314978-05:00	99914 Query	SET SESSION lock_wait_timeout=60
+2017-11-07T19:38:49.315165-05:00	99914 Query	SHOW VARIABLES LIKE 'wait\_timeout'
+2017-11-07T19:38:49.316912-05:00	99914 Query	SET SESSION wait_timeout=10000
+2017-11-07T19:38:49.317097-05:00	99914 Query	SELECT @@SQL_MODE
+2017-11-07T19:38:49.317244-05:00	99914 Query	SET @@SQL_QUOTE_SHOW_CREATE = 1/*!40101, @@SQL_MODE='NO_AUTO_VALUE_ON_ZERO,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION'*/
+2017-11-07T19:38:49.317408-05:00	99914 Query	SELECT @@server_id /*!50038 , @@hostname*/
+2017-11-07T19:38:49.318403-05:00	99915 Connect	root@localhost on test using Socket
+2017-11-07T19:38:49.318771-05:00	99915 Query	SHOW VARIABLES LIKE 'innodb\_lock_wait_timeout'
+2017-11-07T19:38:49.321489-05:00	99915 Query	SET SESSION innodb_lock_wait_timeout=1
+2017-11-07T19:38:49.321664-05:00	99915 Query	SHOW VARIABLES LIKE 'lock\_wait_timeout'
+2017-11-07T19:38:49.323333-05:00	99915 Query	SET SESSION lock_wait_timeout=60
+2017-11-07T19:38:49.323556-05:00	99915 Query	SHOW VARIABLES LIKE 'wait\_timeout'
+2017-11-07T19:38:49.325205-05:00	99915 Query	SET SESSION wait_timeout=10000
+2017-11-07T19:38:49.325352-05:00	99915 Query	SELECT @@SQL_MODE
+2017-11-07T19:38:49.325552-05:00	99915 Query	SET @@SQL_QUOTE_SHOW_CREATE = 1/*!40101, @@SQL_MODE='NO_AUTO_VALUE_ON_ZERO,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION'*/
+2017-11-07T19:38:49.325710-05:00	99915 Query	SELECT @@server_id /*!50038 , @@hostname*/
+2017-11-07T19:38:49.326039-05:00	99914 Query	SHOW VARIABLES LIKE 'wsrep_on'
+2017-11-07T19:38:49.328272-05:00	99914 Query	SHOW VARIABLES LIKE 'version%'
+2017-11-07T19:38:49.330281-05:00	99914 Query	SHOW ENGINES
+2017-11-07T19:38:49.330845-05:00	99914 Query	SHOW VARIABLES LIKE 'innodb_version'
+2017-11-07T19:38:49.333294-05:00	99914 Query	SHOW VARIABLES LIKE 'innodb_stats_persistent'
+2017-11-07T19:38:49.335223-05:00	99914 Query	SELECT @@SERVER_ID
+2017-11-07T19:38:49.335487-05:00	99914 Query	SHOW GRANTS FOR CURRENT_USER()
+2017-11-07T19:38:49.378997-05:00	99914 Query	SHOW FULL PROCESSLIST
+2017-11-07T19:38:49.379551-05:00	99914 Query	SHOW SLAVE HOSTS
+2017-11-07T19:38:49.381138-05:00	99914 Query	SHOW GLOBAL STATUS LIKE 'Threads_running'
+2017-11-07T19:38:49.422178-05:00	99914 Query	SHOW GLOBAL STATUS LIKE 'Threads_running'
+2017-11-07T19:38:49.423384-05:00	99914 Query	SELECT CONCAT(@@hostname, @@port)
+2017-11-07T19:38:49.448665-05:00	99914 Query	SHOW TABLES FROM `test` LIKE 'b'
+2017-11-07T19:38:49.448884-05:00	99914 Query	SELECT VERSION()
+2017-11-07T19:38:49.449001-05:00	99914 Query	SHOW TRIGGERS FROM `test` LIKE 'b'
+2017-11-07T19:38:49.449327-05:00	99914 Query	/*!40101 SET @OLD_SQL_MODE := @@SQL_MODE, @@SQL_MODE := '', @OLD_QUOTE := @@SQL_QUOTE_SHOW_CREATE, @@SQL_QUOTE_SHOW_CREATE := 1 */
+2017-11-07T19:38:49.449398-05:00	99914 Query	USE `test`
+2017-11-07T19:38:49.449529-05:00	99914 Query	SHOW CREATE TABLE `test`.`b`
+2017-11-07T19:38:49.449645-05:00	99914 Query	/*!40101 SET @@SQL_MODE := @OLD_SQL_MODE, @@SQL_QUOTE_SHOW_CREATE := @OLD_QUOTE */
+2017-11-07T19:38:49.449883-05:00	99914 Query	EXPLAIN SELECT * FROM `test`.`b` WHERE 1=1
+2017-11-07T19:38:49.450322-05:00	99914 Query	SELECT table_schema, table_name FROM information_schema.key_column_usage WHERE referenced_table_schema='test' AND referenced_table_name='b'
+2017-11-07T19:38:49.466407-05:00	99914 Query	SHOW VARIABLES LIKE 'wsrep_on'
+2017-11-07T19:38:49.467977-05:00	99914 Query	/*!40101 SET @OLD_SQL_MODE := @@SQL_MODE, @@SQL_MODE := '', @OLD_QUOTE := @@SQL_QUOTE_SHOW_CREATE, @@SQL_QUOTE_SHOW_CREATE := 1 */
+2017-11-07T19:38:49.468072-05:00	99914 Query	USE `test`
+2017-11-07T19:38:49.468170-05:00	99914 Query	SHOW CREATE TABLE `test`.`b`
+2017-11-07T19:38:49.468293-05:00	99914 Query	/*!40101 SET @@SQL_MODE := @OLD_SQL_MODE, @@SQL_QUOTE_SHOW_CREATE := @OLD_QUOTE */
+2017-11-07T19:38:49.468548-05:00	99914 Query	CREATE TABLE `test`.`_b_new` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+2017-11-07T19:38:49.483979-05:00	99914 Query	ALTER TABLE `test`.`_b_new` ADD COLUMN f_id int default 0
+2017-11-07T19:38:49.500013-05:00	99914 Query	/*!40101 SET @OLD_SQL_MODE := @@SQL_MODE, @@SQL_MODE := '', @OLD_QUOTE := @@SQL_QUOTE_SHOW_CREATE, @@SQL_QUOTE_SHOW_CREATE := 1 */
+2017-11-07T19:38:49.500105-05:00	99914 Query	USE `test`
+2017-11-07T19:38:49.500199-05:00	99914 Query	SHOW CREATE TABLE `test`.`_b_new`
+2017-11-07T19:38:49.500315-05:00	99914 Query	/*!40101 SET @@SQL_MODE := @OLD_SQL_MODE, @@SQL_QUOTE_SHOW_CREATE := @OLD_QUOTE */
+2017-11-07T19:38:49.500856-05:00	99914 Query	SELECT TRIGGER_SCHEMA, TRIGGER_NAME, DEFINER, ACTION_STATEMENT, SQL_MODE,        CHARACTER_SET_CLIENT, COLLATION_CONNECTION, EVENT_MANIPULATION, ACTION_TIMING   FROM INFORMATION_SCHEMA.TRIGGERS  WHERE EVENT_MANIPULATION = 'DELETE'    AND ACTION_TIMING = 'AFTER'    AND TRIGGER_SCHEMA = 'test'    AND EVENT_OBJECT_TABLE = 'b'
+2017-11-07T19:38:49.501358-05:00	99914 Query	SELECT TRIGGER_SCHEMA, TRIGGER_NAME, DEFINER, ACTION_STATEMENT, SQL_MODE,        CHARACTER_SET_CLIENT, COLLATION_CONNECTION, EVENT_MANIPULATION, ACTION_TIMING   FROM INFORMATION_SCHEMA.TRIGGERS  WHERE EVENT_MANIPULATION = 'UPDATE'    AND ACTION_TIMING = 'AFTER'    AND TRIGGER_SCHEMA = 'test'    AND EVENT_OBJECT_TABLE = 'b'
+2017-11-07T19:38:49.501744-05:00	99914 Query	SELECT TRIGGER_SCHEMA, TRIGGER_NAME, DEFINER, ACTION_STATEMENT, SQL_MODE,        CHARACTER_SET_CLIENT, COLLATION_CONNECTION, EVENT_MANIPULATION, ACTION_TIMING   FROM INFORMATION_SCHEMA.TRIGGERS  WHERE EVENT_MANIPULATION = 'INSERT'    AND ACTION_TIMING = 'AFTER'    AND TRIGGER_SCHEMA = 'test'    AND EVENT_OBJECT_TABLE = 'b'
+2017-11-07T19:38:49.502097-05:00	99914 Query	SELECT TRIGGER_SCHEMA, TRIGGER_NAME, DEFINER, ACTION_STATEMENT, SQL_MODE,        CHARACTER_SET_CLIENT, COLLATION_CONNECTION, EVENT_MANIPULATION, ACTION_TIMING   FROM INFORMATION_SCHEMA.TRIGGERS  WHERE EVENT_MANIPULATION = 'DELETE'    AND ACTION_TIMING = 'BEFORE'    AND TRIGGER_SCHEMA = 'test'    AND EVENT_OBJECT_TABLE = 'b'
+2017-11-07T19:38:49.502520-05:00	99914 Query	SELECT TRIGGER_SCHEMA, TRIGGER_NAME, DEFINER, ACTION_STATEMENT, SQL_MODE,        CHARACTER_SET_CLIENT, COLLATION_CONNECTION, EVENT_MANIPULATION, ACTION_TIMING   FROM INFORMATION_SCHEMA.TRIGGERS  WHERE EVENT_MANIPULATION = 'UPDATE'    AND ACTION_TIMING = 'BEFORE'    AND TRIGGER_SCHEMA = 'test'    AND EVENT_OBJECT_TABLE = 'b'
+2017-11-07T19:38:49.503165-05:00	99914 Query	SELECT TRIGGER_SCHEMA, TRIGGER_NAME, DEFINER, ACTION_STATEMENT, SQL_MODE,        CHARACTER_SET_CLIENT, COLLATION_CONNECTION, EVENT_MANIPULATION, ACTION_TIMING   FROM INFORMATION_SCHEMA.TRIGGERS  WHERE EVENT_MANIPULATION = 'INSERT'    AND ACTION_TIMING = 'BEFORE'    AND TRIGGER_SCHEMA = 'test'    AND EVENT_OBJECT_TABLE = 'b'
+2017-11-07T19:38:49.504031-05:00	99914 Query	CREATE TRIGGER `pt_osc_test_b_del` AFTER DELETE ON `test`.`b` FOR EACH ROW DELETE IGNORE FROM `test`.`_b_new` WHERE `test`.`_b_new`.`a` <=> OLD.`a`
+2017-11-07T19:38:49.526245-05:00	99914 Query	CREATE TRIGGER `pt_osc_test_b_upd` AFTER UPDATE ON `test`.`b` FOR EACH ROW BEGIN DELETE IGNORE FROM `test`.`_b_new` WHERE !(OLD.`a` <=> NEW.`a`) AND `test`.`_b_new`.`a` <=> OLD.`a`;REPLACE INTO `test`.`_b_new` (`a`) VALUES (NEW.`a`);END
+2017-11-07T19:38:49.550267-05:00	99914 Query	CREATE TRIGGER `pt_osc_test_b_ins` AFTER INSERT ON `test`.`b` FOR EACH ROW REPLACE INTO `test`.`_b_new` (`a`) VALUES (NEW.`a`)
+2017-11-07T19:38:49.564382-05:00	99914 Query	EXPLAIN SELECT * FROM `test`.`b` WHERE 1=1
+2017-11-07T19:38:49.565221-05:00	99914 Query	SELECT /*!40001 SQL_NO_CACHE */ `a` FROM `test`.`b` FORCE INDEX(`PRIMARY`) ORDER BY `a` LIMIT 1 /*first lower boundary*/
+2017-11-07T19:38:49.593139-05:00	99914 Query	SELECT /*!40001 SQL_NO_CACHE */ `a` FROM `test`.`b` FORCE INDEX (`PRIMARY`) WHERE `a` IS NOT NULL ORDER BY `a` LIMIT 1 /*key_len*/
+2017-11-07T19:38:49.593522-05:00	99914 Query	EXPLAIN SELECT /*!40001 SQL_NO_CACHE */ * FROM `test`.`b` FORCE INDEX (`PRIMARY`) WHERE `a` >= '1' /*key_len*/
+
+2017-11-07T19:38:49.593892-05:00	99914 Query	EXPLAIN SELECT /*!40001 SQL_NO_CACHE */ `a` FROM `test`.`b` FORCE INDEX(`PRIMARY`) WHERE ((`a` >= '1')) ORDER BY `a` LIMIT 999, 2 /*next chunk boundary*/
+2017-11-07T19:38:49.594093-05:00	99914 Query	SELECT /*!40001 SQL_NO_CACHE */ `a` FROM `test`.`b` FORCE INDEX(`PRIMARY`) WHERE ((`a` >= '1')) ORDER BY `a` LIMIT 999, 2 /*next chunk boundary*/
+2017-11-07T19:38:49.594876-05:00	99914 Query	EXPLAIN SELECT `a` FROM `test`.`b` FORCE INDEX(`PRIMARY`) WHERE ((`a` >= '1')) AND ((`a` <= '1899')) LOCK IN SHARE MODE /*explain pt-online-schema-change 7609 copy nibble*/
+2017-11-07T19:38:49.595271-05:00	99914 Query	INSERT LOW_PRIORITY IGNORE INTO `test`.`_b_new` (`a`) SELECT `a` FROM `test`.`b` FORCE INDEX(`PRIMARY`) WHERE ((`a` >= '1')) AND ((`a` <= '1899')) LOCK IN SHARE MODE /*pt-online-schema-change 7609 copy nibble*/
+2017-11-07T19:38:49.613564-05:00	99914 Query	SHOW WARNINGS
+2017-11-07T19:38:49.613838-05:00	99914 Query	SHOW GLOBAL STATUS LIKE 'Threads_running'
+2017-11-07T19:38:49.614695-05:00	99914 Query	EXPLAIN SELECT /*!40001 SQL_NO_CACHE */ `a` FROM `test`.`b` FORCE INDEX(`PRIMARY`) WHERE ((`a` >= '1900')) ORDER BY `a` LIMIT 27441, 2 /*next chunk boundary*/
+2017-11-07T19:38:49.614892-05:00	99914 Query	SELECT /*!40001 SQL_NO_CACHE */ `a` FROM `test`.`b` FORCE INDEX(`PRIMARY`) WHERE ((`a` >= '1900')) ORDER BY `a` LIMIT 27441, 2 /*next chunk boundary*/
+2017-11-07T19:38:49.620070-05:00	99914 Query	EXPLAIN SELECT `a` FROM `test`.`b` FORCE INDEX(`PRIMARY`) WHERE ((`a` >= '1900')) AND ((`a` <= '29341')) LOCK IN SHARE MODE /*explain pt-online-schema-change 7609 copy nibble*/
+2017-11-07T19:38:49.620344-05:00	99914 Query	INSERT LOW_PRIORITY IGNORE INTO `test`.`_b_new` (`a`) SELECT `a` FROM `test`.`b` FORCE INDEX(`PRIMARY`) WHERE ((`a` >= '1900')) AND ((`a` <= '29341')) LOCK IN SHARE MODE /*pt-online-schema-change 7609 copy nibble*/
+2017-11-07T19:38:49.785702-05:00	99914 Query	SHOW WARNINGS
+2017-11-07T19:38:49.785973-05:00	99914 Query	SHOW GLOBAL STATUS LIKE 'Threads_running'
+2017-11-07T19:38:49.786778-05:00	99914 Query	EXPLAIN SELECT /*!40001 SQL_NO_CACHE */ `a` FROM `test`.`b` FORCE INDEX(`PRIMARY`) WHERE ((`a` >= '29342')) ORDER BY `a` LIMIT 78764, 2 /*next chunk boundary*/
+2017-11-07T19:38:49.786970-05:00	99914 Query	SELECT /*!40001 SQL_NO_CACHE */ `a` FROM `test`.`b` FORCE INDEX(`PRIMARY`) WHERE ((`a` >= '29342')) ORDER BY `a` LIMIT 78764, 2 /*next chunk boundary*/
+2017-11-07T19:38:49.800531-05:00	99914 Query	SELECT /*!40001 SQL_NO_CACHE */ `a` FROM `test`.`b` FORCE INDEX(`PRIMARY`) ORDER BY `a` DESC LIMIT 1 /*last upper boundary*/
+2017-11-07T19:38:49.800710-05:00	99914 Query	EXPLAIN SELECT `a` FROM `test`.`b` FORCE INDEX(`PRIMARY`) WHERE ((`a` >= '29342')) AND ((`a` <= '100000')) LOCK IN SHARE MODE /*explain pt-online-schema-change 7609 copy nibble*/
+2017-11-07T19:38:49.801007-05:00	99914 Query	INSERT LOW_PRIORITY IGNORE INTO `test`.`_b_new` (`a`) SELECT `a` FROM `test`.`b` FORCE INDEX(`PRIMARY`) WHERE ((`a` >= '29342')) AND ((`a` <= '100000')) LOCK IN SHARE MODE /*pt-online-schema-change 7609 copy nibble*/
+2017-11-07T19:38:50.144882-05:00	99914 Query	SHOW WARNINGS
+2017-11-07T19:38:50.146109-05:00	99914 Query	SHOW GLOBAL STATUS LIKE 'Threads_running'
+2017-11-07T19:38:50.149584-05:00	99914 Query	ANALYZE TABLE `test`.`_b_new` /* pt-online-schema-change */
+2017-11-07T19:38:50.173566-05:00	99914 Query	RENAME TABLE `test`.`b` TO `test`.`_b_old`, `test`.`_b_new` TO `test`.`b`
+2017-11-07T19:38:50.192163-05:00	99914 Query	DROP TABLE IF EXISTS `test`.`_b_old`
+2017-11-07T19:38:50.201774-05:00	99914 Query	DROP TRIGGER IF EXISTS `test`.`pt_osc_test_b_del`
+2017-11-07T19:38:50.204004-05:00	99914 Query	DROP TRIGGER IF EXISTS `test`.`pt_osc_test_b_upd`
+2017-11-07T19:38:50.205461-05:00	99914 Query	DROP TRIGGER IF EXISTS `test`.`pt_osc_test_b_ins`
+2017-11-07T19:38:50.206997-05:00	99914 Query	SHOW TABLES FROM `test` LIKE '\_b\_new'
+2017-11-07T19:38:50.210848-05:00	99915 Quit	
+2017-11-07T19:38:50.211186-05:00	99914 Quit	
