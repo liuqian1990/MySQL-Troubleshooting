@@ -1,0 +1,99 @@
+	-- Who is blocking (BLOCKING_TRX_ID | BLOCKING_LOCK_ID)
+
+SELECT  TRX.TRX_MYSQL_THREAD_ID,
+ TRX.TRX_ISOLATION_LEVEL,
+ TRX.TRX_STARTED,
+ TRX.TRX_STATE,
+ PROCESSLIST.USER,
+ PROCESSLIST.HOST,
+ PROCESSLIST.DB,
+ PROCESSLIST.COMMAND,
+ PROCESSLIST.TIME,
+ PROCESSLIST.STATE,
+ LOCK_WAITS.REQUESTING_TRX_ID,
+ LOCK_WAITS.BLOCKING_TRX_ID,
+ LOCK_WAITS.BLOCKING_LOCK_ID
+FROM INFORMATION_SCHEMA.INNODB_LOCKS LOCKS,
+     INFORMATION_SCHEMA.INNODB_TRX TRX,
+     INFORMATION_SCHEMA.PROCESSLIST PROCESSLIST,
+     INFORMATION_SCHEMA.INNODB_LOCK_WAITS LOCK_WAITS WHERE LOCKS.LOCK_TRX_ID = TRX.TRX_ID
+  AND TRX.TRX_MYSQL_THREAD_ID = PROCESSLIST.ID;
+
+-- Query #2
+
+SELECT r.trx_id waiting_trx_id, r.trx_mysql_thread_id waiting_thread, r.trx_query waiting_query, b.trx_id blocking_trx_id, b.trx_mysql_thread_id blocking_thread, b.trx_query blocking_query, bl.lock_id blocking_lock_id, bl.lock_mode blocking_lock_mode, bl.lock_type blocking_lock_type, bl.lock_table blocking_lock_table, bl.lock_index blocking_lock_index, rl.lock_id waiting_lock_id, rl.lock_mode waiting_lock_mode, rl.lock_type waiting_lock_type, rl.lock_table waiting_lock_table, rl.lock_index waiting_lock_index FROM information_schema.INNODB_LOCK_WAITS w INNER JOIN information_schema.INNODB_TRX b ON b.trx_id = w.blocking_trx_id INNER JOIN information_schema.INNODB_TRX r ON r.trx_id = w.requesting_trx_id INNER JOIN information_schema.INNODB_LOCKS bl ON bl.lock_id = w.blocking_lock_id INNER JOIN information_schema.INNODB_LOCKS rl ON rl.lock_id = w.requested_lock_id; 
+
+-- Query #3
+
+SELECT blocking_trx_id,COUNT(*), b.trx_query blocking_query, MIN(r.trx_wait_started) FROM information_schema.INNODB_LOCK_WAITS w INNER JOIN information_schema.INNODB_TRX b ON b.trx_id = w.blocking_trx_id INNER JOIN information_schema.INNODB_TRX r ON r.trx_id = w.requesting_trx_id INNER JOIN information_schema.INNODB_LOCKS bl ON bl.lock_id = w.blocking_lock_id INNER JOIN information_schema.INNODB_LOCKS rl ON rl.lock_id = w.requested_lock_id GROUP BY blocking_trx_id ORDER BY COUNT(*) DESC;
+
+
+-- A list of blocking transactions
+
+SELECT * FROM INFORMATION_SCHEMA.INNODB_LOCKS WHERE LOCK_TRX_ID IN (SELECT BLOCKING_TRX_ID FROM INFORMATION_SCHEMA.INNODB_LOCK_WAITS);
+
+OR
+
+SELECT INNODB_LOCKS.*
+FROM INFORMATION_SCHEMA.INNODB_LOCKS
+JOIN INFORMATION_SCHEMA.INNODB_LOCK_WAITS
+  ON (INNODB_LOCKS.LOCK_TRX_ID = INNODB_LOCK_WAITS.BLOCKING_TRX_ID);
+  
+  
+  SELECT CONCAT('KILL ', trx.trx_mysql_thread_id) kill_statement,
+              trx.trx_mysql_thread_id thd_id,
+              ps.user,
+              ps.host,
+              trx.trx_query
+         FROM INFORMATION_SCHEMA.INNODB_TRX trx
+         JOIN INFORMATION_SCHEMA.PROCESSLIST ps ON trx.trx_mysql_thread_id = ps.id
+        WHERE (UNIX_TIMESTAMP() - UNIX_TIMESTAMP(trx.trx_started)) > max_transaction_time
+          AND user != 'system_user';
+		  
+		  
+		  
+		  
+1. Use MySQL processlist to find out slow operations. The first one show us the slow queries on a specific database: 
+
+
+
+select * from information_schema.processlist 
+              where db='alfresco' and command='Query' order by 'time' desc; 
+
+Since I understood that the specific slow queries are utilizing two tables I also used: 
+
+
+
+select * from information_schema.processlist 
+      where db='alfresco' and info like '%alf_%_assoc%' 
+
+
+
+2. Now since we have one idea about heavy MySQL threads, lets take a look to the transactions: 
+First of all see all transactions that have placed an exclusive lock on one of the tables: 
+Second find the lock wait transactions 
+
+
+select * from information_schema.INNODB_TRX 
+         where trx_id in ( 
+             select Lock_trx_id from information_schema.INNODB_LOCKS where lock_mode='X'  )
+
+select * from information_schema.INNODB_TRX where trx_id in (
+         select distinct blocking_trx_id 
+            from information_schema.INNODB_LOCK_WAITS ) 
+
+
+3. Finally find the threads along with conflicting transactions with the following query: 
+
+
+SELECT r.trx_id waiting_trx_id,  
+       r.trx_mysql_thread_id waiting_thread,
+       r.trx_query waiting_query,
+       b.trx_id blocking_trx_id, 
+       b.trx_mysql_thread_id blocking_thread,
+       b.trx_query blocking_query
+   FROM       information_schema.innodb_lock_waits w
+   INNER JOIN information_schema.innodb_trx b  ON  
+    b.trx_id = w.blocking_trx_id
+  INNER JOIN information_schema.innodb_trx r  ON  
+    r.trx_id = w.requesting_trx_id;
