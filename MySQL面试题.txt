@@ -1,0 +1,19 @@
+1.讲下MVCC原理
+2.MySQL高可用架构介绍
+3.OSC(在线更改表结构)原理
+4.MySQL性能调优有哪些关键点/经验
+5.MySQL在线备份方案,xtrabackuo原理
+6.MySQL监控有哪些指标
+7.如何在线迁移MySQL
+8.MySQL5.7有哪些新功能
+9.update t1 set c1 = v1 where id = 123;id 为普通索引,该操作会加哪些锁
+10.空隙锁是解决了什么问题 
+11.服务器参数调优,有哪些关键点
+12.了解哪些中间件,对LVS,MHA中间件的理解
+13.运维MySQL主从复制集群中,遇到过哪问题,如何解决
+14.运维MySQL过程中,遇到过什么重大故障,如何处理的
+15.数据库监控自动化方案
+
+16.innodb_autoinc_lock_mode 自增锁并发怎么设?设哪个参数,值多少,为什么
+https://dev.mysql.com/doc/refman/5.7/en/innodb-auto-increment-handling.html
+innodb_autoinc_lock_mode = 2 
