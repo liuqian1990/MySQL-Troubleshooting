@@ -71,3 +71,33 @@ char存储定长(right padding),读取时会截断末尾空格,长度最大为25
 
 18.int(20)中20的涵义
 20表示最大显示宽度为20,但仍占4字节存储,存储范围不变；
+
+5.1 数据库性能的优化
+
+5.2 深入理解mysql的Record Locks、Gap Locks、Next-Key Locks
+
+例如下面的在什么情况下会出现死锁：
+
+start transaction; DELETE FROM t WHERE id =6; INSERT INTO t VALUES(6); commit;
+
+5.3 insert into select语句的加锁情况
+
+5.4 事务的ACID特性概念
+
+5.5 innodb的MVCC理解
+
+5.6 undo redo binlog
+
+1 undo redo 都可以实现持久化，他们的流程是什么？为什么选用redo来做持久化？
+2 undo、redo结合起来实现原子性和持久化，为什么undo log要先于redo log持久化？
+3 undo为什么要依赖redo？
+4 日志内容可以是物理日志，也可以是逻辑日志？他们各自的优点和缺点是？
+5 redo log最终采用的是物理日志加逻辑日志，物理到page，page内逻辑。还存在什么问题？怎么解决？Double Write
+6 undo log为什么不采用物理日志而采用逻辑日志？
+7 为什么要引入Checkpoint？
+8 引入Checkpoint后为了保证一致性需要阻塞用户操作一段时间，怎么解决这个问题？（这个问题还是很有普遍性的，redis、ZooKeeper都有类似的情况以及不同的应对策略）又有了同步Checkpoint和异步Checkpoint
+9 开启binlog的情况下，事务内部2PC的一般过程（含有2次持久化，redo log和binlog的持久化）
+10 解释上述过程，为什么binlog的持久化要在redo log之后，在存储引擎commit之前？
+11 为什么要保持事务之间写入binlog和执行存储引擎commit操作的顺序性？（即先写入binlog日志的事务一定先commit）
+12 为了保证上述顺序性，之前的办法是加锁prepare_commit_mutex，但是这极大的降低了事务的效率，怎么来实现binlog的group commit？
+13 怎么将redo log的持久化也实现group commit？至此事务内部2PC的过程，2次持久化的操作都可以group commit了，极大提高了效率
