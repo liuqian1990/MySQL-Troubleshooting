@@ -97,7 +97,20 @@ start transaction; DELETE FROM t WHERE id =6; INSERT INTO t VALUES(6); commit;
 7 为什么要引入Checkpoint？
 8 引入Checkpoint后为了保证一致性需要阻塞用户操作一段时间，怎么解决这个问题？（这个问题还是很有普遍性的，redis、ZooKeeper都有类似的情况以及不同的应对策略）又有了同步Checkpoint和异步Checkpoint
 9 开启binlog的情况下，事务内部2PC的一般过程（含有2次持久化，redo log和binlog的持久化）
+
 10 解释上述过程，为什么binlog的持久化要在redo log之后，在存储引擎commit之前？
+解释上述过程，为什么binlog的持久化要在redo log之后，在存储引擎commit之前？
+怎么保证redo log的写入和binlog的写入是原子的？
+mysql内部通过一个分布式的事务进行写入,最后提交过程很复杂
+1.先在InnoDB引擎写一个prepare redo log(fsync)
+2.再写binlog(fsync)
+3.最后再写InnoDB commit redo log(fsync)
+
+recovery过程
+在InnoDBn层,prepare redo log中会记录一个trxid,宕机重新起来恢复时,
+先scan binlog,把所有的trxid拿出来做一个hash table(扫最后一个binlog文,一个事务的日志是不能跨文件的)
+
+
 11 为什么要保持事务之间写入binlog和执行存储引擎commit操作的顺序性？（即先写入binlog日志的事务一定先commit）
 12 为了保证上述顺序性，之前的办法是加锁prepare_commit_mutex，但是这极大的降低了事务的效率，怎么来实现binlog的group commit？
 13 怎么将redo log的持久化也实现group commit？至此事务内部2PC的过程，2次持久化的操作都可以group commit了，极大提高了效率
